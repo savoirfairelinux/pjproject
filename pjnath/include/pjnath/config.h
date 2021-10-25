@@ -278,7 +278,7 @@
  * the maximum number of components (PJ_ICE_MAX_COMP) value.
  */
 #ifndef PJ_ICE_COMP_BITS
-#   define PJ_ICE_COMP_BITS                         1
+#   define PJ_ICE_COMP_BITS			    2
 #endif
 
 
