@@ -69,7 +69,7 @@ JavaVM *pj_jni_jvm = NULL;
 JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved)
 {
     pj_jni_jvm = vm;
-    
+
     return JNI_VERSION_1_4;
 }
 
@@ -830,6 +830,18 @@ PJ_DEF(pj_status_t) pj_thread_resume(pj_thread_t *p)
     return rc;
 }
 
+#if PJ_DARWINOS
+static pthread_key_t key;
+static pthread_once_t key_once = PTHREAD_ONCE_INIT;
+
+static void
+make_key()
+{
+	(void) pthread_key_create(&key, free);
+}
+#endif
+
+
 /*
  * pj_thread_this()
  */
@@ -839,9 +851,26 @@ PJ_DEF(pj_thread_t*) pj_thread_this(void)
     pj_thread_t *rec = (pj_thread_t*)pj_thread_local_get(thread_tls_id);
 
     if (rec == NULL) {
-        pj_assert(!"Calling pjlib from unknown/external thread. You must "
-                   "register external threads with pj_thread_register() "
-                   "before calling any pjlib functions.");
+
+	static pj_thread_t* dummy;
+
+#if PJ_DARWINOS
+	(void) pthread_once(&key_once, make_key);
+
+	pj_thread_t* desc;
+
+	if ((desc = pthread_getspecific(key)) == NULL) {
+		desc = malloc(sizeof(pj_thread_desc));
+		pj_bzero(desc, sizeof(pj_thread_desc));
+		(void) pthread_setspecific(key, desc);
+	}
+#else
+	static __thread pj_thread_desc desc;
+#endif
+
+	pj_thread_register(NULL, (long*)desc, &dummy);
+
+	rec = (pj_thread_t*)pj_thread_local_get(thread_tls_id);
     }
 
     /*
@@ -1034,7 +1063,7 @@ PJ_DEF(pj_status_t) pj_atomic_destroy( pj_atomic_t *atomic_var )
     pj_status_t status;
 
     PJ_ASSERT_RETURN(atomic_var, PJ_EINVAL);
-    
+
 #if PJ_HAS_THREADS
     status = pj_mutex_destroy( atomic_var->mutex );
     if (status == PJ_SUCCESS) {
