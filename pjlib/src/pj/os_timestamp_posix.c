@@ -203,7 +203,7 @@ PJ_DEF(pj_status_t) pj_get_timestamp_freq(pj_timestamp *freq)
     return PJ_SUCCESS;
 }
 
-#elif defined(__ANDROID__)
+#elif defined(PJ_ANDROID) && PJ_ANDROID
 
 #include <errno.h>
 #include <time.h>

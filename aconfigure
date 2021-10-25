@@ -6534,9 +6534,6 @@ case $target in
 	esac
 	# UUID
 	case $target in
-	  *android*)
-	  	ac_os_objs="$ac_os_objs guid_android.o"
-	  	;;
 	  *darwin*)
 	  	ac_os_objs="$ac_os_objs guid_darwin.o"
 	  	;;
