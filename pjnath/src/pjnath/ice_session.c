@@ -2723,9 +2723,8 @@ static pj_status_t perform_check(pj_ice_sess *ice,
     return status;
 }
 
-
 /* Start periodic check for the specified checklist.
- * This callback is called by timer on every Ta (20msec by default)
+ * This callback is called by timer on every Ta
  */
 static pj_status_t start_periodic_check(pj_timer_heap_t *th,
                                         pj_timer_entry *te)
@@ -2892,7 +2891,6 @@ static pj_status_t start_periodic_check(pj_timer_heap_t *th,
     pj_log_pop_indent();
     return PJ_SUCCESS;
 }
-
 
 /* Start sending connectivity check with USE-CANDIDATE */
 static void start_nominated_check(pj_ice_sess *ice)
