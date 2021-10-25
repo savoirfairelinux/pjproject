@@ -340,7 +340,7 @@
  * Default: 20
  */
 #ifndef PJ_ICE_TA_VAL
-#   define PJ_ICE_TA_VAL			    20
+#   define PJ_ICE_TA_VAL			    50
 #endif
 
 
