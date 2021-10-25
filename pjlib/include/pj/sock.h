@@ -324,6 +324,7 @@ extern const pj_uint16_t PJ_SO_KEEPALIVE;
 extern const pj_uint16_t PJ_TCP_KEEPIDLE;
 extern const pj_uint16_t PJ_TCP_KEEPINTVL;
 extern const pj_uint16_t PJ_TCP_KEEPCNT;
+extern const pj_uint16_t PJ_TCP_USER_TIMEOUT;
 
 /** Set the protocol-defined priority for all packets to be sent on socket.
  */
@@ -366,6 +367,9 @@ extern const pj_uint16_t PJ_IP_DROP_MEMBERSHIP;
 
     /** Get #PJ_TCP_KEEPINTVL constant */
 #   define pj_TCP_KEEPINTVL() PJ_TCP_KEEPINTVL(void);
+
+    /** Get #PJ_TCP_USER_TIMEOUT constant */
+    PJ_DECL(pj_uint16_t) PJ_TCP_USER_TIMEOUT(void);
 
     /** Get #PJ_TCP_KEEPCNT constant */
 #   define pj_TCP_KEEPCNT() PJ_TCP_KEEPCNT(void);
@@ -411,6 +415,9 @@ extern const pj_uint16_t PJ_IP_DROP_MEMBERSHIP;
 
     /** Get #PJ_TCP_KEEPIDLE constant */
 #   define pj_TCP_KEEPIDLE() PJ_TCP_KEEPIDLE
+
+    /** Get #PJ_TCP_USER_TIMEOUT constant */
+#   define pj_TCP_USER_TIMEOUT() PJ_TCP_USER_TIMEOUT
 
     /** Get #PJ_TCP_KEEPINTVL constant */
 #   define pj_TCP_KEEPINTVL() PJ_TCP_KEEPINTVL
