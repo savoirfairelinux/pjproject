@@ -1,4 +1,4 @@
-/* 
+/*
  * Copyright (C) 2008-2011 Teluu Inc. (http://www.teluu.com)
  * Copyright (C) 2003-2008 Benny Prijono <benny@prijono.org>
  *
@@ -14,7 +14,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA 
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 #ifndef __PJNATH_STUN_SOCK_H__
 #define __PJNATH_STUN_SOCK_H__
@@ -23,10 +23,14 @@
  * @file stun_sock.h
  * @brief STUN aware socket transport
  */
+#include <pj/activesock.h>
 #include <pjnath/stun_config.h>
+#include <pjnath/stun_session.h>
 #include <pjlib-util/resolver.h>
+#include <pjlib-util/srv_resolver.h>
 #include <pj/ioqueue.h>
 #include <pj/lock.h>
+#include <pj/pool.h>
 #include <pj/sock.h>
 #include <pj/sock_qos.h>
 
@@ -86,7 +90,17 @@ typedef enum pj_stun_sock_op
     /**
      * IP address change notification from the keep-alive operation.
      */
-    PJ_STUN_SOCK_MAPPED_ADDR_CHANGE
+    PJ_STUN_SOCK_MAPPED_ADDR_CHANGE,
+
+    /**
+     * STUN session was destroyed.
+     */
+    PJ_STUN_SESS_DESTROYED,
+
+    /**
+     * TCP fails to connect
+     */
+    PJ_STUN_TCP_CONNECT_ERROR
 
 
 } pj_stun_sock_op;
@@ -143,7 +157,7 @@ typedef struct pj_stun_sock_cb
      * callback may be called for the following conditions:
      *  - the first time the publicly mapped address has been resolved from
      *    the STUN server, this callback will be called with \a op argument
-     *    set to PJ_STUN_SOCK_BINDING_OP \a status  argument set to 
+     *    set to PJ_STUN_SOCK_BINDING_OP \a status  argument set to
      *    PJ_SUCCESS.
      *  - anytime when the transport has detected that the publicly mapped
      *    address has changed, this callback will be called with \a op
@@ -152,7 +166,7 @@ typedef struct pj_stun_sock_cb
      *    application will get the resolved public address in the
      *    #pj_stun_sock_info structure.
      *  - for any terminal error (such as STUN time-out, DNS resolution
-     *    failure, or keep-alive failure), this callback will be called 
+     *    failure, or keep-alive failure), this callback will be called
      *    with the \a status argument set to non-PJ_SUCCESS.
      *
      * @param stun_sock The STUN transport.
@@ -166,7 +180,7 @@ typedef struct pj_stun_sock_cb
      *                  should return PJ_TRUE to let the STUN socket operation
      *                  continues.
      */
-    pj_bool_t   (*on_status)(pj_stun_sock *stun_sock, 
+    pj_bool_t   (*on_status)(pj_stun_sock *stun_sock,
                              pj_stun_sock_op op,
                              pj_status_t status);
 
@@ -197,6 +211,11 @@ typedef struct pj_stun_sock_info
     pj_sockaddr     mapped_addr;
 
     /**
+     * If connected, the remote address will be stored here.
+     */
+    pj_sockaddr     outgoing_addr;
+
+    /**
      * Number of interface address aliases. The interface address aliases
      * are list of all interface addresses in this host.
      */
@@ -206,6 +225,11 @@ typedef struct pj_stun_sock_info
      * Array of interface address aliases.
      */
     pj_sockaddr     aliases[PJ_ICE_ST_MAX_CAND];
+
+    /**
+     * The tranport type of the socket
+     */
+    pj_stun_tp_type conn_type;
 
 } pj_stun_sock_info;
 
@@ -262,7 +286,7 @@ typedef struct pj_stun_sock_cfg
 
     /**
      * Specify the STUN keep-alive duration, in seconds. The STUN transport
-     * does keep-alive by sending STUN Binding request to the STUN server. 
+     * does keep-alive by sending STUN Binding request to the STUN server.
      * If this value is zero, the PJ_STUN_KEEP_ALIVE_SEC value will be used.
      * If the value is negative, it will disable STUN keep-alive.
      */
@@ -341,9 +365,11 @@ PJ_DECL(void) pj_stun_sock_cfg_default(pj_stun_sock_cfg *cfg);
  *                      things the ioqueue and timer heap instance for
  *                      the operation of this transport.
  * @param af            Address family of socket. Currently pj_AF_INET()
- *                      and pj_AF_INET6() are supported. 
+ *                      and pj_AF_INET6() are supported.
  * @param name          Optional name to be given to this transport to
  *                      assist debugging.
+ * @param conn_type     Connection type to the STUN server. Both TCP and UDP are
+ *			            supported.
  * @param cb            Callback to receive events/data from the transport.
  * @param cfg           Optional transport settings.
  * @param user_data     Arbitrary application data to be associated with
@@ -356,6 +382,7 @@ PJ_DECL(void) pj_stun_sock_cfg_default(pj_stun_sock_cfg *cfg);
 PJ_DECL(pj_status_t) pj_stun_sock_create(pj_stun_config *stun_cfg,
                                          const char *name,
                                          int af,
+					                     pj_stun_tp_type conn_type,
                                          const pj_stun_sock_cb *cb,
                                          const pj_stun_sock_cfg *cfg,
                                          void *user_data,
@@ -475,7 +502,7 @@ PJ_DECL(pj_status_t) pj_stun_sock_get_info(pj_stun_sock *stun_sock,
  *                      this case the \a on_data_sent() callback will be
  *                      called when data is actually sent. Any other return
  *                      value indicates error condition.
- */ 
+ */
 PJ_DECL(pj_status_t) pj_stun_sock_sendto(pj_stun_sock *stun_sock,
                                          pj_ioqueue_op_key_t *send_key,
                                          const void *pkt,
@@ -484,6 +511,51 @@ PJ_DECL(pj_status_t) pj_stun_sock_sendto(pj_stun_sock *stun_sock,
                                          const pj_sockaddr_t *dst_addr,
                                          unsigned addr_len);
 
+
+#if PJ_HAS_TCP
+/**
+ * Connect active socket to remote address
+ * @param stun_sock
+ * @param remote_addr the destination
+ * @param af          address family
+ */
+PJ_DECL(pj_status_t) pj_stun_sock_connect_active(pj_stun_sock *stun_sock,
+						 const pj_sockaddr_t *remote_addr,
+						 int af);
+
+/**
+ * Connect active socket to remote address
+ * @param stun_sock
+ * @param remote_addr the destination
+ * @param af          address family
+ */
+PJ_DECL(pj_status_t) pj_stun_sock_reconnect_active(pj_stun_sock *stun_sock,
+						   const pj_sockaddr_t *remote_addr,
+						   int af);
+
+/**
+ * Close active socket
+ * @param stun_sock
+ * @param remote_addr    The remote address linked
+ */
+PJ_DECL(pj_status_t) pj_stun_sock_close(pj_stun_sock *stun_sock,
+					const pj_sockaddr_t *remote_addr);
+
+/**
+ * Close all active sockets except the one with remote_addr
+ * @param stun_sock
+ * @param remote_addr    The remote address linked
+ */
+PJ_DECL(pj_status_t) pj_stun_sock_close_all_except(pj_stun_sock *stun_sock,
+					const pj_sockaddr_t *remote_addr);
+
+#endif
+
+/**
+ * Retrieve the linked session
+ * @param stun_sock
+ */
+PJ_DECL(pj_stun_session *) pj_stun_sock_get_session(pj_stun_sock *stun_sock);
 /**
  * @}
  */
