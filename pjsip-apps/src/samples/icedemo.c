@@ -1,4 +1,4 @@
-/* 
+/*
  * Copyright (C) 2008-2011 Teluu Inc. (http://www.teluu.com)
  *
  * This program is free software; you can redistribute it and/or modify
@@ -13,7 +13,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA 
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,6 +43,7 @@ static struct app_t
         pj_str_t    stun_srv;
         pj_str_t    turn_srv;
         pj_bool_t   turn_tcp;
+        pj_bool_t   ice_tcp;
         pj_str_t    turn_username;
         pj_str_t    turn_password;
         pj_bool_t   turn_fingerprint;
@@ -92,7 +93,7 @@ static void err_exit(const char *title, pj_status_t status)
 
     if (icedemo.icest)
         pj_ice_strans_destroy(icedemo.icest);
-    
+
     pj_thread_sleep(500);
 
     icedemo.thread_quit_flag = PJ_TRUE;
@@ -150,13 +151,13 @@ static pj_status_t handle_events(unsigned max_msec, unsigned *p_count)
     pj_assert(timeout.sec >= 0 && timeout.msec >= 0);
     if (timeout.msec >= 1000) timeout.msec = 999;
 
-    /* compare the value with the timeout to wait from timer, and use the 
-     * minimum value. 
+    /* compare the value with the timeout to wait from timer, and use the
+     * minimum value.
     */
     if (PJ_TIME_VAL_GT(timeout, max_timeout))
         timeout = max_timeout;
 
-    /* Poll ioqueue. 
+    /* Poll ioqueue.
      * Repeat polling the ioqueue while we have immediate events, because
      * timer heap may process more than one events, so if we only process
      * one network events at a time (such as when IOCP backend is used),
@@ -212,7 +213,7 @@ static int icedemo_worker_thread(void *unused)
  * as STUN connectivity checks or TURN signaling).
  */
 static void cb_on_rx_data(pj_ice_strans *ice_st,
-                          unsigned comp_id, 
+                          unsigned comp_id,
                           void *pkt, pj_size_t size,
                           const pj_sockaddr_t *src_addr,
                           unsigned src_addr_len)
@@ -237,11 +238,11 @@ static void cb_on_rx_data(pj_ice_strans *ice_st,
  * This is the callback that is registered to the ICE stream transport to
  * receive notification about ICE state progression.
  */
-static void cb_on_ice_complete(pj_ice_strans *ice_st, 
+static void cb_on_ice_complete(pj_ice_strans *ice_st,
                                pj_ice_strans_op op,
                                pj_status_t status)
 {
-    const char *opname = 
+    const char *opname =
         (op==PJ_ICE_STRANS_OP_INIT? "initialization" :
             (op==PJ_ICE_STRANS_OP_NEGOTIATION ? "negotiation" : "unknown_op"));
 
@@ -269,7 +270,7 @@ static void log_func(int level, const char *data, int len)
 
 /*
  * This is the main application initialization function. It is called
- * once (and only once) during application initialization sequence by 
+ * once (and only once) during application initialization sequence by
  * main().
  */
 static pj_status_t icedemo_init(void)
@@ -295,18 +296,18 @@ static pj_status_t icedemo_init(void)
     icedemo.ice_cfg.stun_cfg.pf = &icedemo.cp.factory;
 
     /* Create application memory pool */
-    icedemo.pool = pj_pool_create(&icedemo.cp.factory, "icedemo", 
+    icedemo.pool = pj_pool_create(&icedemo.cp.factory, "icedemo",
                                   512, 512, NULL);
 
     /* Create timer heap for timer stuff */
-    CHECK( pj_timer_heap_create(icedemo.pool, 100, 
+    CHECK( pj_timer_heap_create(icedemo.pool, 100,
                                 &icedemo.ice_cfg.stun_cfg.timer_heap) );
 
     /* and create ioqueue for network I/O stuff */
-    CHECK( pj_ioqueue_create(icedemo.pool, 16, 
+    CHECK( pj_ioqueue_create(icedemo.pool, 16,
                              &icedemo.ice_cfg.stun_cfg.ioqueue) );
 
-    /* something must poll the timer heap and ioqueue, 
+    /* something must poll the timer heap and ioqueue,
      * unless we're on Symbian where the timer heap and ioqueue run
      * on themselves.
      */
@@ -317,14 +318,14 @@ static pj_status_t icedemo_init(void)
 
     /* Create DNS resolver if nameserver is set */
     if (icedemo.opt.ns.slen) {
-        CHECK( pj_dns_resolver_create(&icedemo.cp.factory, 
-                                      "resolver", 
-                                      0, 
+        CHECK( pj_dns_resolver_create(&icedemo.cp.factory,
+                                      "resolver",
+                                      0,
                                       icedemo.ice_cfg.stun_cfg.timer_heap,
-                                      icedemo.ice_cfg.stun_cfg.ioqueue, 
+                                      icedemo.ice_cfg.stun_cfg.ioqueue,
                                       &icedemo.ice_cfg.resolver) );
 
-        CHECK( pj_dns_resolver_set_ns(icedemo.ice_cfg.resolver, 1, 
+        CHECK( pj_dns_resolver_set_ns(icedemo.ice_cfg.resolver, 1,
                                       &icedemo.opt.ns, NULL) );
     }
 
@@ -339,6 +340,12 @@ static pj_status_t icedemo_init(void)
         icedemo.ice_cfg.opt.aggressive = PJ_FALSE;
     else
         icedemo.ice_cfg.opt.aggressive = PJ_TRUE;
+
+    /* Connection type to STUN server */
+    if (icedemo.opt.ice_tcp)
+	icedemo.ice_cfg.stun.conn_type = PJ_STUN_TP_TCP;
+    else
+	icedemo.ice_cfg.stun.conn_type = PJ_STUN_TP_UDP;
 
     /* Configure STUN/srflx candidate resolution */
     if (icedemo.opt.stun_srv.slen) {
@@ -392,6 +399,10 @@ static pj_status_t icedemo_init(void)
          * so that it does't clutter the screen output.
          */
         icedemo.ice_cfg.turn.alloc_param.ka_interval = KA_INTERVAL;
+    }
+
+    if (icedemo.opt.ice_tcp) {
+	icedemo.ice_cfg.protocol = PJ_ICE_TP_TCP;
     }
 
     /* -= That's it for now, initialization is complete =- */
@@ -462,8 +473,8 @@ static void icedemo_destroy_instance(void)
  */
 static void icedemo_init_session(unsigned rolechar)
 {
-    pj_ice_sess_role role = (pj_tolower((pj_uint8_t)rolechar)=='o' ? 
-                                PJ_ICE_SESS_ROLE_CONTROLLING : 
+    pj_ice_sess_role role = (pj_tolower((pj_uint8_t)rolechar)=='o' ?
+                                PJ_ICE_SESS_ROLE_CONTROLLING :
                                 PJ_ICE_SESS_ROLE_CONTROLLED);
     pj_status_t status;
 
@@ -529,17 +540,35 @@ static int print_cand(char buffer[], unsigned maxlen,
     char *p = buffer;
     int printed;
 
-    PRINT("a=candidate:%.*s %u UDP %u %s %u typ ",
+    PRINT("a=candidate:%.*s %u %s %u %s %u typ ",
           (int)cand->foundation.slen,
           cand->foundation.ptr,
           (unsigned)cand->comp_id,
+	      cand->transport == PJ_CAND_UDP? "UDP" : "TCP",
           cand->prio,
-          pj_sockaddr_print(&cand->addr, ipaddr, 
+          pj_sockaddr_print(&cand->addr, ipaddr,
                             sizeof(ipaddr), 0),
           (unsigned)pj_sockaddr_get_port(&cand->addr));
 
     PRINT("%s\n",
           pj_ice_get_cand_type_name(cand->type));
+
+    if (cand->transport != PJ_CAND_UDP) {
+	PRINT(" tcptype");
+	switch (cand->transport) {
+	case PJ_CAND_TCP_ACTIVE:
+	    PRINT(" active");
+	    break;
+	case PJ_CAND_TCP_PASSIVE:
+	    PRINT(" passive");
+	    break;
+	case PJ_CAND_TCP_SO:
+	default:
+	    PRINT(" so");
+	    break;
+	}
+    }
+    PRINT("\n");
 
     if (p == buffer+maxlen)
         return -PJ_ETOOSMALL;
@@ -549,7 +578,7 @@ static int print_cand(char buffer[], unsigned maxlen,
     return (int)(p-buffer);
 }
 
-/* 
+/*
  * Encode ICE information in SDP.
  */
 static int encode_session(char buffer[], unsigned maxlen)
@@ -605,6 +634,26 @@ static int encode_session(char buffer[], unsigned maxlen)
                   (int)pj_sockaddr_get_port(&cand[0].addr),
                   pj_sockaddr_print(&cand[0].addr, ipaddr,
                                     sizeof(ipaddr), 0));
+        }
+
+        if (cand[0].transport != PJ_CAND_UDP) {
+            /** RFC 6544, Section 4.5:
+             * If the default candidate is TCP-based, the agent MUST include the
+             * a=setup and a=connection attributes from RFC 4145 [RFC4145],
+             * following the procedures defined there as if ICE were not in use.
+             */
+            PRINT("a=setup:");
+            switch (cand[0].transport) {
+            case PJ_CAND_TCP_ACTIVE:
+            PRINT("active\n");
+            break;
+            case PJ_CAND_TCP_PASSIVE:
+            PRINT("passive\n");
+            break;
+            default:
+            return PJ_EINVALIDOP;
+            }
+            PRINT("a=connection:new\n");
         }
 
         /* Enumerate all candidates for this component */
@@ -663,7 +712,7 @@ static void icedemo_show_ice(void)
         return;
     }
 
-    printf("Negotiated comp_cnt: %d\n", 
+    printf("Negotiated comp_cnt: %d\n",
            pj_ice_strans_get_running_comp_cnt(icedemo.icest));
     printf("Role               : %s\n",
            pj_ice_strans_get_role(icedemo.icest)==PJ_ICE_SESS_ROLE_CONTROLLED ?
@@ -703,12 +752,12 @@ static void icedemo_show_ice(void)
 
 
 /*
- * Input and parse SDP from the remote (containing remote's ICE information) 
+ * Input and parse SDP from the remote (containing remote's ICE information)
  * and save it to global variables.
  */
 static void icedemo_input_remote(void)
 {
-    char linebuf[80];
+    char linebuf[120];
     unsigned media_cnt = 0;
     unsigned comp0_port = 0;
     char     comp0_addr[80];
@@ -764,14 +813,14 @@ static void icedemo_input_remote(void)
                 }
 
                 comp0_port = atoi(portstr);
-                
+
             }
             break;
         case 'c':
             {
                 int cnt;
                 char c[32], net[32], ip[80];
-                
+
                 cnt = sscanf(line+2, "%s %s %s", c, net, ip);
                 if (cnt != 3) {
                     PJ_LOG(1,(THIS_FILE, "Error parsing connection line"));
@@ -820,28 +869,34 @@ static void icedemo_input_remote(void)
                 } else if (strcmp(attr, "candidate")==0) {
                     char *sdpcand = attr+strlen(attr)+1;
                     int af, cnt;
-                    char foundation[32], transport[12], ipaddr[80], type[32];
+                    char foundation[32], transport[12], ipaddr[80], type[32], tcp_type[32];
                     pj_str_t tmpaddr;
                     int comp_id, prio, port;
                     pj_ice_sess_cand *cand;
                     pj_status_t status;
+        		    pj_bool_t is_tcp = PJ_FALSE;
 
-                    cnt = sscanf(sdpcand, "%s %d %s %d %s %d typ %s",
+                    cnt = sscanf(sdpcand, "%s %d %s %d %s %d typ %s tcptype %s\n",
                                  foundation,
                                  &comp_id,
                                  transport,
                                  &prio,
                                  ipaddr,
                                  &port,
-                                 type);
-                    if (cnt != 7) {
+                                 type,
+				                 tcp_type);
+        		    if (cnt != 7 && cnt != 8) {
                         PJ_LOG(1, (THIS_FILE, "error: Invalid ICE candidate line"));
                         goto on_error;
                     }
 
+                    if (strcmp(transport, "TCP") == 0) {
+                        is_tcp = PJ_TRUE;
+                    }
+
                     cand = &icedemo.rem.cand[icedemo.rem.cand_cnt];
                     pj_bzero(cand, sizeof(*cand));
-                    
+
                     if (strcmp(type, "host")==0)
                         cand->type = PJ_ICE_CAND_TYPE_HOST;
                     else if (strcmp(type, "srflx")==0)
@@ -849,15 +904,32 @@ static void icedemo_input_remote(void)
                     else if (strcmp(type, "relay")==0)
                         cand->type = PJ_ICE_CAND_TYPE_RELAYED;
                     else {
-                        PJ_LOG(1, (THIS_FILE, "Error: invalid candidate type '%s'", 
+                        PJ_LOG(1, (THIS_FILE, "Error: invalid candidate type '%s'",
                                    type));
                         goto on_error;
+                    }
+
+                    if (is_tcp) {
+                        if (strcmp(tcp_type, "active") == 0)
+                            cand->transport = PJ_CAND_TCP_ACTIVE;
+                        else if (strcmp(tcp_type, "passive") == 0)
+                            cand->transport = PJ_CAND_TCP_PASSIVE;
+                        else if (strcmp(tcp_type, "so") == 0)
+                            cand->transport = PJ_CAND_TCP_SO;
+                        else {
+                            PJ_LOG(1, (THIS_FILE,
+                                "Error: invalid transport type '%s'",
+                                tcp_type));
+                            goto on_error;
+                        }
+                    } else {
+                        cand->transport = PJ_CAND_UDP;
                     }
 
                     cand->comp_id = (pj_uint8_t)comp_id;
                     pj_strdup2(icedemo.pool, &cand->foundation, foundation);
                     cand->prio = prio;
-                    
+
                     if (strchr(ipaddr, ':'))
                         af = pj_AF_INET6();
                     else
@@ -917,7 +989,7 @@ static void icedemo_input_remote(void)
         pj_sockaddr_set_port(&icedemo.rem.def_addr[0], (pj_uint16_t)comp0_port);
     }
 
-    PJ_LOG(3, (THIS_FILE, "Done, %d remote candidate(s) added", 
+    PJ_LOG(3, (THIS_FILE, "Done, %d remote candidate(s) added",
                icedemo.rem.cand_cnt));
     return;
 
@@ -951,7 +1023,7 @@ static void icedemo_start_nego(void)
 
     PJ_LOG(3,(THIS_FILE, "Starting ICE negotiation.."));
 
-    status = pj_ice_strans_start_ice(icedemo.icest, 
+    status = pj_ice_strans_start_ice(icedemo.icest,
                                      pj_cstr(&rufrag, icedemo.rem.ufrag),
                                      pj_cstr(&rpwd, icedemo.rem.pwd),
                                      icedemo.rem.cand_cnt,
