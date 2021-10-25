@@ -2268,6 +2268,9 @@ PJ_DEF(pj_status_t) pjsip_tpmgr_acquire_transport2(pjsip_tpmgr *mgr,
     {
         pjsip_transport *seltp = sel->u.transport;
 
+        pjsip_transport_type_e type_no_ipv6 = type % PJSIP_TRANSPORT_IPV6;
+        pjsip_transport_type_e key_type_no_ipv6 = seltp->key.type %
+            PJSIP_TRANSPORT_IPV6;
         /* See if the transport is (not) suitable */
         if (seltp->key.type != type) {
             pj_lock_release(mgr->lock);
