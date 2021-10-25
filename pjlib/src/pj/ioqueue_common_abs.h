@@ -1,5 +1,5 @@
 /* $Id */
-/* 
+/*
  * Copyright (C) 2008-2011 Teluu Inc. (http://www.teluu.com)
  * Copyright (C) 2003-2008 Benny Prijono <benny@prijono.org>
  *
@@ -15,14 +15,14 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA 
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
 /* ioqueue_common_abs.h
  *
- * This file contains private declarations for abstracting various 
- * event polling/dispatching mechanisms (e.g. select, poll, epoll) 
- * to the ioqueue. 
+ * This file contains private declarations for abstracting various
+ * event polling/dispatching mechanisms (e.g. select, poll, epoll)
+ * to the ioqueue.
  */
 
 #include <pj/list.h>
@@ -89,11 +89,19 @@ union operation_key
 };
 
 #if PJ_IOQUEUE_HAS_SAFE_UNREG
+<<<<<<< HEAD
 #   define UNREG_FIELDS                 \
         unsigned            ref_count;  \
         pj_bool_t           closing;    \
         pj_time_val         free_time;  \
-        
+
+=======
+#   define UNREG_FIELDS			\
+	unsigned	    ref_count;	\
+	pj_bool_t	    closing;	\
+	pj_time_val	    free_time;	\
+
+>>>>>>> 26a1072f6 (0008-fix_ioqueue_ipv6_sendto)
 #else
 #   define UNREG_FIELDS
 #endif
@@ -138,9 +146,12 @@ static void ioqueue_add_to_set2(pj_ioqueue_t *ioqueue,
                                 pj_ioqueue_key_t *key,
                                 unsigned event_types );
 static void ioqueue_remove_from_set( pj_ioqueue_t *ioqueue,
-                                     pj_ioqueue_key_t *key, 
+                                     pj_ioqueue_key_t *key,
                                      enum ioqueue_event_type event_type);
+<<<<<<< HEAD
 static void ioqueue_remove_from_set2(pj_ioqueue_t *ioqueue,
                                      pj_ioqueue_key_t *key,
                                      unsigned event_types);
 
+=======
+>>>>>>> 26a1072f6 (0008-fix_ioqueue_ipv6_sendto)
