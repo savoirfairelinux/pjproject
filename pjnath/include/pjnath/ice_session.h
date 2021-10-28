@@ -486,6 +486,13 @@ struct pj_ice_sess_check
      * STUN transaction.
      */
     pj_status_t		 err_code;
+
+#if PJ_HAS_TCP
+    /**
+     * TCP reconnection attemps counter.
+     */
+    int reconnect_count;
+#endif
 };
 
 
