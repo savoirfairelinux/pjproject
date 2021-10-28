@@ -89,19 +89,11 @@ union operation_key
 };
 
 #if PJ_IOQUEUE_HAS_SAFE_UNREG
-<<<<<<< HEAD
 #   define UNREG_FIELDS                 \
         unsigned            ref_count;  \
         pj_bool_t           closing;    \
         pj_time_val         free_time;  \
 
-=======
-#   define UNREG_FIELDS			\
-	unsigned	    ref_count;	\
-	pj_bool_t	    closing;	\
-	pj_time_val	    free_time;	\
-
->>>>>>> 26a1072f6 (0008-fix_ioqueue_ipv6_sendto)
 #else
 #   define UNREG_FIELDS
 #endif
@@ -148,10 +140,7 @@ static void ioqueue_add_to_set2(pj_ioqueue_t *ioqueue,
 static void ioqueue_remove_from_set( pj_ioqueue_t *ioqueue,
                                      pj_ioqueue_key_t *key,
                                      enum ioqueue_event_type event_type);
-<<<<<<< HEAD
 static void ioqueue_remove_from_set2(pj_ioqueue_t *ioqueue,
                                      pj_ioqueue_key_t *key,
                                      unsigned event_types);
 
-=======
->>>>>>> 26a1072f6 (0008-fix_ioqueue_ipv6_sendto)

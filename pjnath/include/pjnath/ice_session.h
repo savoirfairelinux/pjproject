@@ -485,7 +485,14 @@ struct pj_ice_sess_check
      * When the check failed, this will contain the failure status of the
      * STUN transaction.
      */
-    pj_status_t          err_code;
+    pj_status_t		     err_code;
+
+#if PJ_HAS_TCP
+    /**
+     * TCP reconnection attemps counter.
+     */
+    int reconnect_count;
+#endif
 };
 
 
