@@ -394,6 +394,33 @@
 #endif
 
 /**
+ * Allowed timeout for pending connections. TCP only.
+ *
+ * Default: 15000 (milliseconds)
+ */
+#ifndef PJ_ICE_TCP_CONNECTION_TIMEOUT
+#   define PJ_ICE_TCP_CONNECTION_TIMEOUT	15000
+#endif
+
+/**
+ * Delay between two reconnection attempts. TCP only.
+ *
+ * Default: 500 (milliseconds)
+ */
+#ifndef PJ_ICE_TCP_RECONNECTION_DELAY
+#   define PJ_ICE_TCP_RECONNECTION_DELAY	500
+#endif
+
+/**
+ * Maximum number of reconnection attempts. TCP only.
+ *
+ * Default: 8
+ */
+#ifndef PJ_ICE_TCP_MAX_RECONNECTION_COUNT
+#   define PJ_ICE_TCP_MAX_RECONNECTION_COUNT 8
+#endif
+
+/**
  * For controlling agent if it uses regular nomination, specify the delay to
  * perform nominated check (connectivity check with USE-CANDIDATE attribute)
  * after all components have a valid pair.
