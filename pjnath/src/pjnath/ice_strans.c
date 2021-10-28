@@ -895,7 +895,7 @@ static pj_bool_t add_local_candidate(pj_ice_sess_cand *cand,
             return PJ_SUCCESS;
         }
         else if (stun_cfg->af == pj_AF_INET6()) {
-            pj_in6_addr in6addr = {{0}};
+            pj_in6_addr in6addr = {0};
             in6addr.s6_addr[15] = 1;
 	    if (pj_memcmp(&in6addr, &addr->ipv6.sin6_addr,
 			  sizeof(in6addr))==0)
