@@ -2281,6 +2281,9 @@ static pj_status_t add_rcand_and_update_checklist(
             chk->state = PJ_ICE_SESS_CHECK_STATE_FROZEN;
             chk->foundation_idx = get_check_foundation_idx(ice, lcand, rcand,
                                                            PJ_TRUE);
+#if PJ_HAS_TCP
+	        chk->reconnect_count = 0;
+#endif
 
             /* Check if foundation cannot be added (e.g: list is full) */
             if (chk->foundation_idx < 0)
@@ -2682,9 +2685,13 @@ static pj_status_t perform_check(pj_ice_sess *ice,
             if (ice->timer_connect.id != TIMER_NONE) {
                 pj_assert(!"Not expected any timer active");
             } else {
+                LOG5((ice->obj_name,
+                    "Scheduling connection time-out for check %s",
+                    dump_check(ice->tmp.txt, sizeof(ice->tmp.txt), clist, check)));
+
                 pj_time_val delay = {
-                    .sec  = 15,
-                    .msec = 0,
+                    .sec  = 0,
+                    .msec = PJ_ICE_TCP_CONNECTION_TIMEOUT,
                 };
                 pj_time_val_normalize(&delay);
                 pj_timer_heap_schedule_w_grp_lock(ice->stun_cfg.timer_heap,
@@ -3195,12 +3202,22 @@ void ice_sess_on_peer_connection(pj_ice_sess *ice,
 	 * the relayed candidate. This is done by set_perm from the other case.
 	 * But from this side, we can't know if the peer has authorized us. If it's
 	 * not the case, the connection will got a CONNECTION RESET BY PEER status.
-	 * In this case, we can try to reconnect a bit after and this until the check
-	 * reached its timeout.
+	 * In this case, we try to reconnect few times with a delay between two
+	 * attempts.
 	 */
-	check->state = PJ_ICE_SESS_CHECK_STATE_NEEDS_RETRY;
-	check_set_state(ice, check,PJ_ICE_SESS_CHECK_STATE_NEEDS_RETRY,
-			status);
+	if (check->reconnect_count < PJ_ICE_TCP_MAX_RECONNECTION_COUNT) {
+		check->state = PJ_ICE_SESS_CHECK_STATE_NEEDS_RETRY;
+		check_set_state(ice, check,PJ_ICE_SESS_CHECK_STATE_NEEDS_RETRY,
+				status);
+		check->reconnect_count++;
+	} else {
+		// Max attempts reached. Fail this check.
+		LOG4((ice->obj_name, "Check %s: connection failed after %d attempts",
+			dump_check(ice->tmp.txt, sizeof(ice->tmp.txt), &ice->clist, check),
+			PJ_ICE_TCP_MAX_RECONNECTION_COUNT));
+		check_set_state(ice, check, PJ_ICE_SESS_CHECK_STATE_FAILED, status);
+		on_check_complete(ice, check);
+	}
 	pj_grp_lock_release(ice->grp_lock);
 	return;
     } else if (status != PJ_SUCCESS) {
@@ -3258,8 +3275,21 @@ void ice_sess_on_peer_connection(pj_ice_sess *ice,
 		 * In this case, we can try to reconnect a bit after and this until the check
 		 * reached its timeout.
 		 */
-		check_set_state(ice, check,PJ_ICE_SESS_CHECK_STATE_NEEDS_RETRY,
-				status);
+
+		if (check->reconnect_count < PJ_ICE_TCP_MAX_RECONNECTION_COUNT) {
+			check_set_state(ice, check, PJ_ICE_SESS_CHECK_STATE_NEEDS_RETRY,
+					status);
+			check->reconnect_count++;
+		} else {
+			// Max attempts reached. Fail this check.
+			LOG4((ice->obj_name, "Check %s: connection failed after %d attempts",
+				dump_check(ice->tmp.txt, sizeof(ice->tmp.txt), &ice->clist, check),
+				PJ_ICE_TCP_MAX_RECONNECTION_COUNT));
+			check_set_state(ice, check, PJ_ICE_SESS_CHECK_STATE_FAILED, status);
+			on_check_complete(ice, check);
+			pj_grp_lock_release(ice->grp_lock);
+			return;
+		}
     } else if (status == PJ_EBUSY /* EBUSY */) {
 		check_set_state(ice, check, PJ_ICE_SESS_CHECK_STATE_NEEDS_FIRST_PACKET,
 				status);
@@ -3714,6 +3744,9 @@ static void on_stun_request_complete(pj_stun_session *stun_sess,
         new_check->state = PJ_ICE_SESS_CHECK_STATE_SUCCEEDED;
         new_check->nominated = check->nominated;
         new_check->err_code = PJ_SUCCESS;
+#if PJ_HAS_TCP
+	    new_check->reconnect_count = 0;
+#endif
     } else {
         new_check = &ice->valid_list.checks[i];
         ice->valid_list.checks[i].nominated = check->nominated;

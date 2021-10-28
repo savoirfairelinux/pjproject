@@ -2715,21 +2715,13 @@ PJ_DEF(pj_status_t) pjsip_tpmgr_acquire_transport2(pjsip_tpmgr *mgr,
 
         } else {
 
-            /* Make sure we don't use another factory than the one given if
-               secure flag is set */
-            if (flag & PJSIP_TRANSPORT_SECURE) {
-                TRACE_((THIS_FILE, "Can't create new TLS transport with no "
-                        "provided suitable TLS listener."));
-                return PJSIP_ETPNOTSUITABLE;
+            /* Find factory with type matches the destination type */
+            factory = mgr->factory_list.next;
+            while (factory != &mgr->factory_list) {
+                if (factory->type == type)
+                    break;
+                factory = factory->next;
             }
-
-    	    /* Find factory with type matches the destination type */
-    	    factory = mgr->factory_list.next;
-    	    while (factory != &mgr->factory_list) {
-        		if (factory->type == type)
-        		    break;
-        		factory = factory->next;
-    	    }
 
             if (factory == &mgr->factory_list) {
                 /* No factory can create the transport! */
