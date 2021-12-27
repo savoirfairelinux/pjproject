@@ -3528,6 +3528,9 @@ static void turn_on_state(pj_turn_sock *turn_sock, pj_turn_state_t old_state,
 		      "Comp %d/%d: TURN error (tpid=%d) during state %s",
 		      comp->comp_id, cand_idx, cand->transport_id,
 		      pj_turn_state_name(old_state)));
+		pj_array_erase(comp->cand_list, sizeof(*cand),
+			       comp->cand_cnt, cand_idx);
+		--comp->cand_cnt;
 	}
 
 	sess_init_update(comp->ice_st);
