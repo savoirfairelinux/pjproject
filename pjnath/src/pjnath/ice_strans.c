@@ -945,7 +945,6 @@ static pj_bool_t add_local_candidate(pj_ice_sess_cand *cand,
         pj_bzero(&cand->base_addr, sizeof(cand->base_addr));
         return PJ_SUCCESS;
     } else {
-	comp->cand_cnt+=1;
 	(*cand_cnt)++;
 	(*max_cand_cnt)--;
     }
