@@ -3524,6 +3524,11 @@ static void turn_on_state(pj_turn_sock *turn_sock, pj_turn_state_t old_state,
 	    pj_turn_sock_get_info(turn_sock, &info);
 	    cand->status = (old_state == PJ_TURN_STATE_RESOLVING)?
 	    		   PJ_ERESOLVE : info.last_status;
+
+	    if (PJ_SUCCESS == cand->status) {
+	        cand->status = PJ_EUNKNOWN;
+	    }
+
 	    PJ_LOG(4,(comp->ice_st->obj_name,
 		      "Comp %d/%d: TURN error (tpid=%d) during state %s",
 		      comp->comp_id, cand_idx, cand->transport_id,
