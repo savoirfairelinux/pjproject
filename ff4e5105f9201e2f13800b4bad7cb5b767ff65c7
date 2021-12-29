@@ -116,6 +116,30 @@
       },
       "revId": "ff4e5105f9201e2f13800b4bad7cb5b767ff65c7",
       "serverId": "1e26b4c1-6b8c-47ff-9df7-501b633d3b5a"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "903b353a_2b9eb13b",
+        "filename": "pjnath/src/pjnath/ice_strans.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 3530,
+      "author": {
+        "id": 919
+      },
+      "writtenOn": "2021-12-29T15:53:33Z",
+      "side": 1,
+      "message": "I didn\u0027t check if the state is PJ_TURN_STATE_NULL, will do.",
+      "parentUuid": "a3787fbc_7657b2e1",
+      "range": {
+        "startLine": 3528,
+        "startChar": 5,
+        "endLine": 3530,
+        "endChar": 6
+      },
+      "revId": "ff4e5105f9201e2f13800b4bad7cb5b767ff65c7",
+      "serverId": "1e26b4c1-6b8c-47ff-9df7-501b633d3b5a"
     }
   ]
 }
