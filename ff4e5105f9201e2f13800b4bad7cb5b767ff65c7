@@ -47,6 +47,30 @@
       "serverId": "1e26b4c1-6b8c-47ff-9df7-501b633d3b5a"
     },
     {
+      "unresolved": false,
+      "key": {
+        "uuid": "55be4c20_f80ee48c",
+        "filename": "pjnath/src/pjnath/ice_strans.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 3520,
+      "author": {
+        "id": 919
+      },
+      "writtenOn": "2021-12-29T15:52:25Z",
+      "side": 1,
+      "message": "Ack",
+      "parentUuid": "d6f99d58_2e4ffec6",
+      "range": {
+        "startLine": 3517,
+        "startChar": 8,
+        "endLine": 3520,
+        "endChar": 4
+      },
+      "revId": "ff4e5105f9201e2f13800b4bad7cb5b767ff65c7",
+      "serverId": "1e26b4c1-6b8c-47ff-9df7-501b633d3b5a"
+    },
+    {
       "unresolved": true,
       "key": {
         "uuid": "27a20cc7_d47c7ab7",
@@ -60,6 +84,30 @@
       "writtenOn": "2021-12-29T15:28:19Z",
       "side": 1,
       "message": "I\u0027m not big fan of this approach. if status is PJ_SUCCESS there it means that info.last_status is success, which, I guess should not be the case, cause if pj_turn_sock_alloc fails, cand-\u003estatus will fail and the turn session should be invalid too.\n\nI guess pj_turn_sock_get_info should already detects that, but in your scenario I don\u0027t know what pj_turn_sock_get_info is returning. I see 3 scenarios:\n\n1. pj_turn_sock_get_info is returning PJ_EINVAL, in this case, we should not change the status.\n2. pj_turn_sock_get_info takes the else path, so info-\u003estate \u003d PJ_TURN_STATE_NULL. In this case we should not change the status\n3. It calls pj_turn_session_get_info, but it seems unlikely and I will need more reflexion",
+      "range": {
+        "startLine": 3528,
+        "startChar": 5,
+        "endLine": 3530,
+        "endChar": 6
+      },
+      "revId": "ff4e5105f9201e2f13800b4bad7cb5b767ff65c7",
+      "serverId": "1e26b4c1-6b8c-47ff-9df7-501b633d3b5a"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "a3787fbc_7657b2e1",
+        "filename": "pjnath/src/pjnath/ice_strans.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 3530,
+      "author": {
+        "id": 919
+      },
+      "writtenOn": "2021-12-29T15:52:25Z",
+      "side": 1,
+      "message": "It\u0027s calling pj_turn_session_get_info, because during all my testing, the status was zero (PJ_SUCCESS).  It then return the last status of the session.  Since this bug appear when there\u0027s a failed allocation of a socket, I suspect pj_turn_sock_destroy that call pj_turn_session_shutdown:\n\n 1278             status \u003d pj_sock_socket(turn_sock-\u003eaf, sock_type, 0, \u0026sock);\n 1279             if (status !\u003d PJ_SUCCESS) {\n 1280                 pj_turn_sock_destroy(turn_sock);\n 1281                 return;",
+      "parentUuid": "27a20cc7_d47c7ab7",
       "range": {
         "startLine": 3528,
         "startChar": 5,
