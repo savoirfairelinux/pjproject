@@ -1,0 +1,73 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "cf484281_35608f79",
+        "filename": "/COMMIT_MSG",
+        "patchSetId": 2
+      },
+      "lineNbr": 9,
+      "author": {
+        "id": 220
+      },
+      "writtenOn": "2021-12-29T15:28:19Z",
+      "side": 1,
+      "message": "pjproject !\u003d jami-daemon, so add https://git.jami.net/savoirfairelinux/jami-daemon/-/issues/682 to get the correct link\n\nAlso, the original pjproject seems impacted, so at one point we should create a ticket and PR and clarify the commit message for future rebase (add a link to the PR)",
+      "range": {
+        "startLine": 9,
+        "startChar": 0,
+        "endLine": 9,
+        "endChar": 12
+      },
+      "revId": "ff4e5105f9201e2f13800b4bad7cb5b767ff65c7",
+      "serverId": "1e26b4c1-6b8c-47ff-9df7-501b633d3b5a"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "d6f99d58_2e4ffec6",
+        "filename": "pjnath/src/pjnath/ice_strans.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 3520,
+      "author": {
+        "id": 220
+      },
+      "writtenOn": "2021-12-29T15:28:19Z",
+      "side": 1,
+      "message": "we should remove this, as in fact it\u0027s not true since this: https://github.com/pjsip/pjproject/pull/2525",
+      "range": {
+        "startLine": 3517,
+        "startChar": 8,
+        "endLine": 3520,
+        "endChar": 4
+      },
+      "revId": "ff4e5105f9201e2f13800b4bad7cb5b767ff65c7",
+      "serverId": "1e26b4c1-6b8c-47ff-9df7-501b633d3b5a"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "27a20cc7_d47c7ab7",
+        "filename": "pjnath/src/pjnath/ice_strans.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 3530,
+      "author": {
+        "id": 220
+      },
+      "writtenOn": "2021-12-29T15:28:19Z",
+      "side": 1,
+      "message": "I\u0027m not big fan of this approach. if status is PJ_SUCCESS there it means that info.last_status is success, which, I guess should not be the case, cause if pj_turn_sock_alloc fails, cand-\u003estatus will fail and the turn session should be invalid too.\n\nI guess pj_turn_sock_get_info should already detects that, but in your scenario I don\u0027t know what pj_turn_sock_get_info is returning. I see 3 scenarios:\n\n1. pj_turn_sock_get_info is returning PJ_EINVAL, in this case, we should not change the status.\n2. pj_turn_sock_get_info takes the else path, so info-\u003estate \u003d PJ_TURN_STATE_NULL. In this case we should not change the status\n3. It calls pj_turn_session_get_info, but it seems unlikely and I will need more reflexion",
+      "range": {
+        "startLine": 3528,
+        "startChar": 5,
+        "endLine": 3530,
+        "endChar": 6
+      },
+      "revId": "ff4e5105f9201e2f13800b4bad7cb5b767ff65c7",
+      "serverId": "1e26b4c1-6b8c-47ff-9df7-501b633d3b5a"
+    }
+  ]
+}
