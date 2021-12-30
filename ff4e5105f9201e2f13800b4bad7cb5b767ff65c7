@@ -212,6 +212,30 @@
       },
       "revId": "ff4e5105f9201e2f13800b4bad7cb5b767ff65c7",
       "serverId": "1e26b4c1-6b8c-47ff-9df7-501b633d3b5a"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "527a7170_f03a4ae0",
+        "filename": "pjnath/src/pjnath/ice_strans.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 3530,
+      "author": {
+        "id": 919
+      },
+      "writtenOn": "2021-12-30T22:02:21Z",
+      "side": 1,
+      "message": "It\u0027s not the pj_turn_sock_alloc that fail I think, it\u0027s the underlying pj_sock_socket that fail in turn_on_state.",
+      "parentUuid": "563c805c_6a491bd1",
+      "range": {
+        "startLine": 3528,
+        "startChar": 5,
+        "endLine": 3530,
+        "endChar": 6
+      },
+      "revId": "ff4e5105f9201e2f13800b4bad7cb5b767ff65c7",
+      "serverId": "1e26b4c1-6b8c-47ff-9df7-501b633d3b5a"
     }
   ]
 }
