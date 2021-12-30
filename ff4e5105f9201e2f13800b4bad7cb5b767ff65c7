@@ -188,6 +188,30 @@
       },
       "revId": "ff4e5105f9201e2f13800b4bad7cb5b767ff65c7",
       "serverId": "1e26b4c1-6b8c-47ff-9df7-501b633d3b5a"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "563c805c_6a491bd1",
+        "filename": "pjnath/src/pjnath/ice_strans.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 3530,
+      "author": {
+        "id": 220
+      },
+      "writtenOn": "2021-12-30T20:28:52Z",
+      "side": 1,
+      "message": "What does pj_turn_sock_alloc return? And where it\u0027s failing in the allocation? because if I read the commit message, you wrote \"If the allocation of a turn socket failed for a relayed candidate\". So I guess it\u0027s failing in pj_turn_sock_alloc.\n\nIf it fails, it should pass in sess_fail which should update sess-\u003elast_status in the way that info.last_status retrieven should be different from PJ_SUCCESS",
+      "parentUuid": "96f2fc60_1bc830a8",
+      "range": {
+        "startLine": 3528,
+        "startChar": 5,
+        "endLine": 3530,
+        "endChar": 6
+      },
+      "revId": "ff4e5105f9201e2f13800b4bad7cb5b767ff65c7",
+      "serverId": "1e26b4c1-6b8c-47ff-9df7-501b633d3b5a"
     }
   ]
 }
