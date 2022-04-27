@@ -236,6 +236,30 @@
       },
       "revId": "ff4e5105f9201e2f13800b4bad7cb5b767ff65c7",
       "serverId": "1e26b4c1-6b8c-47ff-9df7-501b633d3b5a"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "e4542ae4_1ad95edf",
+        "filename": "pjnath/src/pjnath/ice_strans.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 3530,
+      "author": {
+        "id": 220
+      },
+      "writtenOn": "2022-04-27T19:17:30Z",
+      "side": 1,
+      "message": "Ok, so let\u0027s go back\n\nI see that last_status is not always modified when turn changes its state.\n\nSo, my question is what is the calltrace going to turn_on_state?\nIn turn_session.c, we should check what \"set_state(sess,\" is called. \"last_status\" is generally updated before calling this. And I see two possibilities:\n\n1. last_status is updated (for example, if called by \"pj_turn_session_destroy\"). In this case we should check why \"PJ_SUCCESS\" is written in this variable, as it\u0027s a failure\n2. last_status is not updated (for example in \"send_refresh\" if lifetime is 0). In this case we should check why it\u0027s not updated.",
+      "parentUuid": "527a7170_f03a4ae0",
+      "range": {
+        "startLine": 3528,
+        "startChar": 5,
+        "endLine": 3530,
+        "endChar": 6
+      },
+      "revId": "ff4e5105f9201e2f13800b4bad7cb5b767ff65c7",
+      "serverId": "1e26b4c1-6b8c-47ff-9df7-501b633d3b5a"
     }
   ]
 }
