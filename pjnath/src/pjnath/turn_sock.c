@@ -431,6 +431,11 @@ static void destroy(pj_turn_sock *turn_sock)
 
 PJ_DEF(void) pj_turn_sock_destroy(pj_turn_sock *turn_sock)
 {
+	pj_turn_sock_destroy2(turn_sock, PJ_SUCCESS);
+}
+
+PJ_DEF(void) pj_turn_sock_destroy2(pj_turn_sock *turn_sock, pj_status_t status)
+{
     pj_grp_lock_acquire(turn_sock->grp_lock);
     if (turn_sock->is_destroying) {
 	pj_grp_lock_release(turn_sock->grp_lock);
@@ -438,7 +443,7 @@ PJ_DEF(void) pj_turn_sock_destroy(pj_turn_sock *turn_sock)
     }
 
     if (turn_sock->sess) {
-	pj_turn_session_shutdown(turn_sock->sess);
+	pj_turn_session_destroy(turn_sock->sess, status);
 	/* This will ultimately call our state callback, and when
 	 * session state is DESTROYING we will schedule a timer to
 	 * destroy ourselves.
@@ -1330,7 +1335,7 @@ static void turn_on_state(pj_turn_session *sess,
 	    /* Init socket */
 	    status = pj_sock_socket(turn_sock->af, sock_type, 0, &sock);
 	    if (status != PJ_SUCCESS) {
-		pj_turn_sock_destroy(turn_sock);
+		pj_turn_sock_destroy2(turn_sock, status);
 		return;
 	    }
 
@@ -1467,7 +1472,7 @@ static void turn_on_state(pj_turn_session *sess,
 		    &turn_sock->cert);
 	    }
 	    if (status != PJ_SUCCESS) {
-		pj_turn_sock_destroy(turn_sock);
+		pj_turn_sock_destroy2(turn_sock, status);
 		return;
 	    }
 	    if (turn_sock->cert) {
@@ -1478,7 +1483,7 @@ static void turn_on_state(pj_turn_session *sess,
 					&turn_sock->ssl_sock);
 
 	    if (status != PJ_SUCCESS) {
-		pj_turn_sock_destroy(turn_sock);
+		pj_turn_sock_destroy2(turn_sock, status);
 		return;
 	    }
 
@@ -1495,7 +1500,7 @@ static void turn_on_state(pj_turn_session *sess,
 #endif
 
 	if (status != PJ_SUCCESS) {
-	    pj_turn_sock_destroy(turn_sock);
+	    pj_turn_sock_destroy2(turn_sock, status);
 	    return;
 	}
 
@@ -1537,7 +1542,7 @@ static void turn_on_state(pj_turn_session *sess,
 			  "Failed to connect to %s",
 			  pj_sockaddr_print(&info.server, addrtxt,
 					    sizeof(addrtxt), 3)));
-	    pj_turn_sock_destroy(turn_sock);
+	    pj_turn_sock_destroy2(turn_sock, status);
 	    return;
 	}
 

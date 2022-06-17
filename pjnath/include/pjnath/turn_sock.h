@@ -412,6 +412,7 @@ PJ_DECL(pj_status_t) pj_turn_sock_create(pj_stun_config *cfg,
  * @param turn_sock	The TURN transport instance.
  */
 PJ_DECL(void) pj_turn_sock_destroy(pj_turn_sock *turn_sock);
+PJ_DECL(void) pj_turn_sock_destroy2(pj_turn_sock *turn_sock, pj_status_t status);
 
 
 /**
