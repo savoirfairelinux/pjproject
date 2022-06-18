@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "44c7970c_87c97a2c",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 919
+      },
+      "writtenOn": "2022-06-18T02:25:50Z",
+      "side": 1,
+      "message": "Need to check with PJSIP team if the patch make sens to them.  However, the patch does fix the gitlab issue we had.",
+      "revId": "20aee34f1db0399d4cffcf4fdcee90e48f6bfd7d",
+      "serverId": "1e26b4c1-6b8c-47ff-9df7-501b633d3b5a"
+    }
+  ]
+}
