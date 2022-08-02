@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "53c9693e_ce20f1b4",
+        "filename": "pjnath/include/pjnath/turn_sock.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 415,
+      "author": {
+        "id": 220
+      },
+      "writtenOn": "2022-08-02T12:45:24Z",
+      "side": 1,
+      "message": "pj sent a comment and would prefer pj_turn_sock_shutdown2\n\nA patch they did: https://github.com/pjsip/pjproject/files/9238347/turn_session_3154_fix.txt\n\nIs it possible to use their patch instead?",
+      "range": {
+        "startLine": 415,
+        "startChar": 14,
+        "endLine": 415,
+        "endChar": 35
+      },
+      "revId": "18a723dd2cd3f843ae9d00f9fe0bcbc54c003eae",
+      "serverId": "1e26b4c1-6b8c-47ff-9df7-501b633d3b5a"
+    }
+  ]
+}
