@@ -428,7 +428,8 @@ static void destroy(pj_turn_sock *turn_sock)
     pj_grp_lock_release(turn_sock->grp_lock);
 }
 
-PJ_DEF(void) pj_turn_sock_destroy(pj_turn_sock *turn_sock)
+static void turn_sock_destroy(pj_turn_sock *turn_sock,
+			      pj_status_t last_err)
 {
     pj_grp_lock_acquire(turn_sock->grp_lock);
     if (turn_sock->is_destroying) {
@@ -437,11 +438,11 @@ PJ_DEF(void) pj_turn_sock_destroy(pj_turn_sock *turn_sock)
     }
 
     if (turn_sock->sess) {
-        pj_turn_session_shutdown(turn_sock->sess);
+        pj_turn_session_shutdown2(turn_sock->sess, last_err);
         /* This will ultimately call our state callback, and when
-         * session state is DESTROYING we will schedule a timer to
-         * destroy ourselves.
-         */
+        * session state is DESTROYING we will schedule a timer to
+        * destroy ourselves.
+        */
     } else {
         destroy(turn_sock);
     }
@@ -449,6 +450,10 @@ PJ_DEF(void) pj_turn_sock_destroy(pj_turn_sock *turn_sock)
     pj_grp_lock_release(turn_sock->grp_lock);
 }
 
+PJ_DEF(void) pj_turn_sock_destroy(pj_turn_sock *turn_sock)
+{
+    turn_sock_destroy(turn_sock, PJ_SUCCESS);
+}
 
 /* Timer callback */
 static void timer_cb(pj_timer_heap_t *th, pj_timer_entry *e)
