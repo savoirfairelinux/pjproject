@@ -429,7 +429,8 @@ static void destroy(pj_turn_sock *turn_sock)
     pj_grp_lock_release(turn_sock->grp_lock);
 }
 
-PJ_DEF(void) pj_turn_sock_destroy(pj_turn_sock *turn_sock)
+static void turn_sock_destroy(pj_turn_sock *turn_sock,
+			      pj_status_t last_err)
 {
     pj_grp_lock_acquire(turn_sock->grp_lock);
     if (turn_sock->is_destroying) {
@@ -438,7 +439,7 @@ PJ_DEF(void) pj_turn_sock_destroy(pj_turn_sock *turn_sock)
     }
 
     if (turn_sock->sess) {
-	pj_turn_session_shutdown(turn_sock->sess);
+	pj_turn_session_shutdown2(turn_sock->sess, last_err);
 	/* This will ultimately call our state callback, and when
 	 * session state is DESTROYING we will schedule a timer to
 	 * destroy ourselves.
@@ -450,6 +451,10 @@ PJ_DEF(void) pj_turn_sock_destroy(pj_turn_sock *turn_sock)
     pj_grp_lock_release(turn_sock->grp_lock);
 }
 
+PJ_DEF(void) pj_turn_sock_destroy(pj_turn_sock *turn_sock)
+{
+    turn_sock_destroy(turn_sock, PJ_SUCCESS);
+}
 
 /* Timer callback */
 static void timer_cb(pj_timer_heap_t *th, pj_timer_entry *e)
@@ -1330,7 +1335,7 @@ static void turn_on_state(pj_turn_session *sess,
 	    /* Init socket */
 	    status = pj_sock_socket(turn_sock->af, sock_type, 0, &sock);
 	    if (status != PJ_SUCCESS) {
-		pj_turn_sock_destroy(turn_sock);
+		turn_sock_destroy(turn_sock, status);
 		return;
 	    }
 
@@ -1340,7 +1345,7 @@ static void turn_on_state(pj_turn_session *sess,
 					 max_bind_retry);
 	    if (status != PJ_SUCCESS) {
 	    	pj_sock_close(sock);
-		pj_turn_sock_destroy(turn_sock);
+		turn_sock_destroy(turn_sock, status);
 		return;
 	    }
 	    /* Apply QoS, if specified */
@@ -1351,7 +1356,7 @@ static void turn_on_state(pj_turn_session *sess,
 	    if (status != PJ_SUCCESS && !turn_sock->setting.qos_ignore_error) 
 	    {
 	    	pj_sock_close(sock);
-		pj_turn_sock_destroy(turn_sock);
+		turn_sock_destroy(turn_sock, status);
 		return;
 	    }
 
@@ -1467,7 +1472,7 @@ static void turn_on_state(pj_turn_session *sess,
 		    &turn_sock->cert);
 	    }
 	    if (status != PJ_SUCCESS) {
-		pj_turn_sock_destroy(turn_sock);
+		turn_sock_destroy(turn_sock, status);
 		return;
 	    }
 	    if (turn_sock->cert) {
@@ -1478,7 +1483,7 @@ static void turn_on_state(pj_turn_session *sess,
 					&turn_sock->ssl_sock);
 
 	    if (status != PJ_SUCCESS) {
-		pj_turn_sock_destroy(turn_sock);
+		turn_sock_destroy(turn_sock, status);
 		return;
 	    }
 
@@ -1495,7 +1500,7 @@ static void turn_on_state(pj_turn_session *sess,
 #endif
 
 	if (status != PJ_SUCCESS) {
-	    pj_turn_sock_destroy(turn_sock);
+	    turn_sock_destroy(turn_sock, status);
 	    return;
 	}
 
@@ -1537,7 +1542,7 @@ static void turn_on_state(pj_turn_session *sess,
 			  "Failed to connect to %s",
 			  pj_sockaddr_print(&info.server, addrtxt,
 					    sizeof(addrtxt), 3)));
-	    pj_turn_sock_destroy(turn_sock);
+	    turn_sock_destroy(turn_sock, status);
 	    return;
 	}
 
