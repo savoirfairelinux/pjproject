@@ -414,10 +414,10 @@
 /**
  * Maximum number of reconnection attempts. TCP only.
  *
- * Default: 8
+ * Default: 24
  */
 #ifndef PJ_ICE_TCP_MAX_RECONNECTION_COUNT
-#   define PJ_ICE_TCP_MAX_RECONNECTION_COUNT 8
+#   define PJ_ICE_TCP_MAX_RECONNECTION_COUNT 24
 #endif
 
 /**

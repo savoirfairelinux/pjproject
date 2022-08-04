@@ -351,7 +351,7 @@ PJ_DEF(void) pj_ice_sess_options_default(pj_ice_sess_options *opt)
     opt->controlled_agent_want_nom_timeout = 
 	ICE_CONTROLLED_AGENT_WAIT_NOMINATION_TIMEOUT;
     opt->trickle = PJ_ICE_SESS_TRICKLE_DISABLED;
-	opt->controlling_agent_passive_timeout = ICE_CONTROLLING_PASSIVE_TIMEOUT;
+	opt->agent_passive_timeout = ICE_CONTROLLING_PASSIVE_TIMEOUT;
 }
 
 /*
@@ -1738,6 +1738,42 @@ static pj_bool_t check_ice_complete(pj_ice_sess *ice)
 	}
 
     if (no_pending_check) {
+
+#if PJ_HAS_TCP
+	if (hasTCP) {
+		// STUN server procedure https://tools.ietf.org/html/rfc6544#section-7.2
+		// An ICE TCP agent, full or lite, MUST be prepared to receive incoming
+		// TCP connection requests on the base of any TCP candidate that is
+		// simultaneous-open or passive.  When the connection request is
+		// received, the agent MUST accept it.
+		// https://tools.ietf.org/html/rfc5245#section-2.6
+		// In that case, allowing ICE to run a little longer might produce
+		// better results.
+		if (ice->timer.id == TIMER_NONE &&
+			ice->opt.agent_passive_timeout >= 0)
+		{
+			pj_time_val delay;
+
+			delay.sec = 0;
+			delay.msec = ice->opt.agent_passive_timeout;
+			pj_time_val_normalize(&delay);
+
+			pj_timer_heap_schedule_w_grp_lock(
+					ice->stun_cfg.timer_heap,
+								&ice->timer, &delay,
+								TIMER_CONTROLLING_TCP_PASSIVE_TIMEOUT,
+								ice->grp_lock);
+
+			LOG5((ice->obj_name,
+			"All checks have completed but failed. Just "
+			"wait for passive connections to timeout "
+			"(timeout=%d msec)",
+			ice->opt.agent_passive_timeout));
+			return PJ_FALSE;
+		}
+	}
+#endif
+
 	/* All checks have completed, but we don't have nominated pair.
 	 * If agent's role is controlled, check if all components have
 	 * valid pair. If it does, this means the controlled agent has
@@ -1786,77 +1822,41 @@ static pj_bool_t check_ice_complete(pj_ice_sess *ice)
 
 	    /* Unreached */
 
-	} else if (ice->is_nominating) {
-#if PJ_HAS_TCP
-		if (hasTCP) {
-			// STUN server procedure https://tools.ietf.org/html/rfc6544#section-7.2
-			// An ICE TCP agent, full or lite, MUST be prepared to receive incoming
-			// TCP connection requests on the base of any TCP candidate that is
-			// simultaneous-open or passive.  When the connection request is
-			// received, the agent MUST accept it.
-			// https://tools.ietf.org/html/rfc5245#section-2.6
-			// In that case, allowing ICE to run a little longer might produce
-			// better results.
-			if (ice->timer.id == TIMER_NONE &&
-				ice->opt.controlling_agent_passive_timeout >= 0) 
-			{
-				pj_time_val delay;
-
-				delay.sec = 0;
-				delay.msec = ice->opt.controlling_agent_passive_timeout;
-				pj_time_val_normalize(&delay);
-
-				pj_timer_heap_schedule_w_grp_lock(
-						ice->stun_cfg.timer_heap,
-									&ice->timer, &delay,
-									TIMER_CONTROLLING_TCP_PASSIVE_TIMEOUT,
-									ice->grp_lock);
-
-				LOG5((ice->obj_name, 
-				"All checks have completed but failed. Just "
-				"wait for passive connections to timeout "
-				"(timeout=%d msec)",
-				ice->opt.controlling_agent_passive_timeout));
-			}
-			return PJ_FALSE;
-		} else {
-#endif
-			/* We are controlling agent and all checks have completed but
-			* there's at least one component without nominated pair (or
-			* more likely we don't have any nominated pairs at all).
-			*/
-			on_ice_complete(ice, PJNATH_EICEFAILED);
-#if PJ_HAS_TCP
-		}
-#endif
-	    return PJ_TRUE;
-
 	} else {
-	    /* We are controlling agent and all checks have completed. If
-	     * we have valid list for every component, then move on to
-	     * sending nominated check, otherwise we have failed.
-	     */
-	    for (i=0; i<ice->comp_cnt; ++i) {
-		if (ice->comp[i].valid_check == NULL)
-		    break;
-	    }
+		if (ice->is_nominating) {
+			/* We are controlling agent and all checks have completed but
+			 * there's at least one component without nominated pair (or
+			 * more likely we don't have any nominated pairs at all).
+			 */
+			on_ice_complete(ice, PJNATH_EICEFAILED);
+			return PJ_TRUE;
+		} else {
+			/* We are controlling agent and all checks have completed. If
+			 * we have valid list for every component, then move on to
+			 * sending nominated check, otherwise we have failed.
+			 */
+			for (i=0; i<ice->comp_cnt; ++i) {
+				if (ice->comp[i].valid_check == NULL)
+					break;
+			}
 
-	    if (i < ice->comp_cnt) {
-		/* At least one component doesn't have a valid check. Mark
-		 * ICE as failed.
-		 */
-		on_ice_complete(ice, PJNATH_EICEFAILED);
-		return PJ_TRUE;
-	    }
+			if (i < ice->comp_cnt) {
+				/* At least one component doesn't have a valid check. Mark
+				 * ICE as failed.
+				 */
+				on_ice_complete(ice, PJNATH_EICEFAILED);
+				return PJ_TRUE;
+			}
 
-	    /* Now it's time to send connectivity check with nomination 
-	     * flag set.
-	     */
-	    LOG4((ice->obj_name, 
-		  "All checks have completed, starting nominated checks now"));
-	    start_nominated_check(ice);
-	    return PJ_FALSE;
-	}
+			/* Now it's time to send connectivity check with nomination
+			* flag set.
+			*/
+			LOG4((ice->obj_name,
+			"All checks have completed, starting nominated checks now"));
+			start_nominated_check(ice);
+			return PJ_FALSE;
+		}
+    }
     }
 
     /* If this connectivity check has been successful, scan all components

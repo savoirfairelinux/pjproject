@@ -794,7 +794,7 @@ typedef struct pj_ice_sess_options
      * in milliseconds for passive candidates and wait for connection
      * attempts
      */
-    int         controlling_agent_passive_timeout;
+    int         agent_passive_timeout;
 
 } pj_ice_sess_options;
 
