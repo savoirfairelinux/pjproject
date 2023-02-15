@@ -116,16 +116,14 @@ static void	   ice_rx_data(pj_ice_sess *ice,
 
 #if PJ_HAS_TCP
 static pj_status_t ice_wait_tcp_connection(pj_ice_sess *ice,
-					   pj_ice_sess_checklist *clist,
 					   unsigned check_id);
 
 static pj_status_t ice_reconnect_tcp_connection(pj_ice_sess *ice,
-						pj_ice_sess_checklist *clist,
 						unsigned check_id);
 
 static pj_status_t ice_close_tcp_connection(pj_ice_sess *ice,
-					    pj_ice_sess_checklist *clist,
 					    unsigned check_id);
+static pj_status_t ice_close_remaining_tcp(pj_ice_sess *ice);
 #endif
 
 
@@ -2402,6 +2400,9 @@ static void on_ice_complete(pj_ice_sess *ice, pj_status_t status)
 		pj_ice_strans_comp *comp = ice_st->comp[i];
 
 		check = pj_ice_strans_get_valid_pair(ice_st, i+1);
+
+		// We nominated a connection, we can close the other ones.
+		ice_close_remaining_tcp(ice_st->ice);
 		if (check) {
 		    char lip[PJ_INET6_ADDRSTRLEN+10];
 		    char rip[PJ_INET6_ADDRSTRLEN+10];
@@ -2745,10 +2746,9 @@ static void on_peer_packet(pj_stun_session* sess, pj_sockaddr_t* remote_addr)
 
 #if PJ_HAS_TCP
 static pj_status_t ice_wait_tcp_connection(pj_ice_sess *ice,
-                                           pj_ice_sess_checklist *clist,
                                            unsigned check_id)
 {
-    pj_ice_sess_check      *check   = &clist->checks[check_id];
+    pj_ice_sess_check      *check   = &ice->clist.checks[check_id];
     const pj_ice_sess_cand *lcand   = check->lcand;
     const pj_ice_sess_cand *rcand   = check->rcand;
     pj_ice_strans          *ice_st  = (pj_ice_strans *)ice->user_data;
@@ -2788,10 +2788,9 @@ static pj_status_t ice_wait_tcp_connection(pj_ice_sess *ice,
 }
 
 static pj_status_t ice_reconnect_tcp_connection(pj_ice_sess *ice,
-                                                pj_ice_sess_checklist *clist,
                                                 unsigned check_id)
 {
-    pj_ice_sess_check      *check   = &clist->checks[check_id];
+    pj_ice_sess_check      *check   = &ice->clist.checks[check_id];
     const pj_ice_sess_cand *lcand   = check->lcand;
     const pj_ice_sess_cand *rcand   = check->rcand;
     pj_ice_strans          *ice_st  = (pj_ice_strans *)ice->user_data;
@@ -2831,10 +2830,9 @@ static pj_status_t ice_reconnect_tcp_connection(pj_ice_sess *ice,
 }
 
 static pj_status_t ice_close_tcp_connection(pj_ice_sess *ice,
-                                            pj_ice_sess_checklist *clist,
                                             unsigned check_id)
 {
-    pj_ice_sess_check      *check   = &clist->checks[check_id];
+    pj_ice_sess_check      *check   = &ice->clist.checks[check_id];
     const pj_ice_sess_cand *lcand   = check->lcand;
     const pj_ice_sess_cand *rcand   = check->rcand;
     pj_ice_strans          *ice_st  = (pj_ice_strans *)ice->user_data;
@@ -2854,6 +2852,43 @@ static pj_status_t ice_close_tcp_connection(pj_ice_sess *ice,
 
     return PJ_EINVAL;
 }
+
+static pj_status_t ice_close_remaining_tcp(pj_ice_sess *ice)
+{
+	for (int i = 0; i < ice->comp_cnt; i++) {
+		pj_ice_strans          *ice_st  = (pj_ice_strans *)ice->user_data;
+		pj_ice_strans_comp     *st_comp = ice_st->comp[i];
+
+		const pj_ice_sess_check *valid_check = pj_ice_strans_get_valid_pair(ice_st, i + 1);
+
+		if (!valid_check) {
+			continue;
+		}
+
+		if (valid_check->lcand->type != PJ_ICE_CAND_TYPE_RELAYED
+			&& valid_check->rcand->type != PJ_ICE_CAND_TYPE_RELAYED) {
+			// If we're not a turn session we can close it.
+			for (int j = 0; j < ice_st->cfg.turn_tp_cnt; ++j) {
+				if (st_comp->turn[j].sock) {
+					pj_turn_sock_destroy(st_comp->turn[j].sock);
+					st_comp->turn[j].sock = NULL;
+				}
+			}
+		}
+		for (int j=0; j< ice_st->cfg.stun_tp_cnt; ++j) {
+			if (st_comp->stun[j].sock) {
+				pj_stun_sock_close_all_except(st_comp->stun[j].sock, &valid_check->rcand->addr);
+			}
+			if (ice_st->cfg.stun_tp[j].af != valid_check->rcand->addr.addr.sa_family) {
+				// If the valid candidate got the other address family we can close.
+				pj_stun_sock_destroy(st_comp->stun[j].sock);
+			}
+		}
+	}
+
+    return PJ_SUCCESS;
+}
+
 #endif
 
 /* Notifification when asynchronous send operation via STUN/TURN
@@ -3596,4 +3631,3 @@ on_return:
 
     pj_log_pop_indent();
 }
-

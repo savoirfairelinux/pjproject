@@ -625,11 +625,9 @@ typedef struct pj_ice_sess_cb
      * Wait for TCP and send connectivity check
      *
      * @param ice			The ICE session.
-     * @param clist			The ICE connection list
      * @param check_id		The wanted check.
      */
     pj_status_t (*wait_tcp_connection)(pj_ice_sess *ice,
-                                       pj_ice_sess_checklist *clist,
                                        unsigned check_id);
 
     /**
@@ -637,22 +635,18 @@ typedef struct pj_ice_sess_cb
      * cf. PJ_ICE_SESS_CHECK_STATE_NEEDS_RETRY
      *
      * @param ice			The ICE session.
-     * @param clist			The ICE connection list
      * @param check_id		The wanted check.
      */
     pj_status_t (*reconnect_tcp_connection)(pj_ice_sess *ice,
-                                            pj_ice_sess_checklist *clist,
                                             unsigned check_id);
 
     /**
      * Close TCP socket
      *
      * @param ice			The ICE session.
-     * @param clist			The ICE connection list
      * @param check_id		The wanted check.
      */
     pj_status_t (*close_tcp_connection)(pj_ice_sess *ice,
-                                        pj_ice_sess_checklist *clist,
                                         unsigned check_id);
 
     /**
@@ -1284,4 +1278,3 @@ PJ_END_DECL
 
 
 #endif	/* __PJNATH_ICE_SESSION_H__ */
-

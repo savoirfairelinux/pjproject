@@ -46,12 +46,11 @@ enum { MAX_BIND_RETRY = 100 };
 #define MAX_RTP_SIZE 65536
 #endif
 
-// TODO (sblin) The incoming socks are a bit HACKY for now.
-// Need a better approach
 typedef struct outgoing_sock {
     pj_sock_t       fd;
     pj_activesock_t *sock;
-    pj_sockaddr_t   *addr;
+    pj_sockaddr     addr;
+    int             addr_len;
 } outgoing_sock;
 
 typedef struct incoming_sock {
@@ -92,6 +91,7 @@ struct pj_stun_sock
     pj_sock_t		 sock_fd;	/* Socket descriptor	    */
     pj_activesock_t	*active_sock;	/* Active socket object	    */
 #if PJ_HAS_TCP
+    pj_bool_t no_new_socket;
     int	 outgoing_nb;
     outgoing_sock	 outgoing_socks[PJ_ICE_MAX_CHECKS];
     int	 incoming_nb;
@@ -455,6 +455,7 @@ PJ_DEF(pj_status_t) pj_stun_sock_create( pj_stun_config *stun_cfg,
     stun_sock->conn_type = conn_type;
     stun_sock->sock_fd = PJ_INVALID_SOCKET;
 #if PJ_HAS_TCP
+    stun_sock->no_new_socket = PJ_FALSE;
     stun_sock->outgoing_nb = -1;
     stun_sock->incoming_nb = -1;
 #endif
@@ -762,7 +763,7 @@ static pj_bool_t on_data_read(pj_activesock_t *asock,
 		    && (cb->on_peer_reset_connection))
 		{
 		    (cb->on_peer_reset_connection)(stun_sock->stun_sess,
-						   stun_sock->outgoing_socks[i].addr);
+						   &stun_sock->outgoing_socks[i].addr);
 		}
 	}
 	return PJ_FALSE;
@@ -772,11 +773,11 @@ static pj_bool_t on_data_read(pj_activesock_t *asock,
     unsigned sock_addr_len = 0;
     for (int i = 0; i <= stun_sock->outgoing_nb; ++i)
 	if (stun_sock->outgoing_socks[i].sock == asock) {
-	    rx_addr       = stun_sock->outgoing_socks[i].addr;
+	    rx_addr       = &stun_sock->outgoing_socks[i].addr;
 	    sock_addr_len = pj_sockaddr_get_len(rx_addr);
 	    if (cb && (cb->on_peer_packet))
 		(cb->on_peer_packet)(stun_sock->stun_sess,
-				     stun_sock->outgoing_socks[i].addr);
+				     &stun_sock->outgoing_socks[i].addr);
 	}
 
     if (rx_addr == NULL && stun_sock->incoming_nb != -1) {
@@ -809,6 +810,9 @@ static pj_bool_t on_stun_sock_accept(pj_activesock_t *active_sock,
     int sock_type = pj_SOCK_STREAM();
     stun_sock     = (pj_stun_sock *)pj_activesock_get_user_data(active_sock);
 
+    if (stun_sock->no_new_socket)
+        return PJ_FALSE;
+
     stun_sock->incoming_nb += 1;
     int nb_check            = stun_sock->incoming_nb;
     pj_sock_t *fd           = &stun_sock->incoming_socks[nb_check].fd;
@@ -835,9 +839,9 @@ static pj_bool_t on_stun_sock_accept(pj_activesock_t *active_sock,
 				  &activesock_cfg, stun_sock->stun_cfg.ioqueue,
 				  &activesock_cb, stun_sock, asock);
     if (status != PJ_SUCCESS) {
-	pj_stun_sock_destroy(stun_sock);
-	pj_grp_lock_release(stun_sock->grp_lock);
-	return status;
+        pj_stun_sock_destroy(stun_sock);
+        pj_grp_lock_release(stun_sock->grp_lock);
+        return status;
     }
 
     /* Start asynchronous read operations */
@@ -1266,7 +1270,7 @@ PJ_DEF(pj_status_t) pj_stun_sock_sendto( pj_stun_sock *stun_sock,
 	pj_bool_t is_incoming = PJ_FALSE;
 	for (int i = 0; i <= stun_sock->outgoing_nb; ++i) {
 	    if (stun_sock->outgoing_socks[i].sock != NULL
-	    && pj_sockaddr_cmp(stun_sock->outgoing_socks[i].addr, dst_addr) == 0) {
+	    && pj_sockaddr_cmp(&stun_sock->outgoing_socks[i].addr, dst_addr) == 0) {
 		is_outgoing = PJ_TRUE;
 		status = pj_activesock_send(stun_sock->outgoing_socks[i].sock,
 					    send_key, pkt, &size, flag);
@@ -1308,9 +1312,13 @@ PJ_DECL(pj_status_t) pj_stun_sock_connect(pj_stun_sock *stun_sock,
     pj_grp_lock_acquire(stun_sock->grp_lock);
     int sock_type = pj_SOCK_STREAM();
 
-    pj_sock_t *fd = &stun_sock->outgoing_socks[nb_check].fd;
-    pj_activesock_t **asock = &stun_sock->outgoing_socks[nb_check].sock;
-    pj_sockaddr_t **addr = &stun_sock->outgoing_socks[nb_check].addr;
+    outgoing_sock* os = &stun_sock->outgoing_socks[nb_check];
+    pj_sock_t *fd = &os->fd;
+    pj_activesock_t **asock = &os->sock;
+
+    pj_sockaddr_t *addr = &os->addr;
+    os->addr_len = pj_sockaddr_get_len(remote_addr);
+
 
     pj_status_t status = pj_sock_socket(af, sock_type, 0, fd);
     if (status != PJ_SUCCESS) {
@@ -1383,23 +1391,23 @@ PJ_DECL(pj_status_t) pj_stun_sock_connect(pj_stun_sock *stun_sock,
                                       sock_type, &activesock_cfg,
                                       stun_sock->stun_cfg.ioqueue, &activesock_cb,
                                       stun_sock, asock);
-
         if (status != PJ_SUCCESS) {
             pj_grp_lock_release(stun_sock->grp_lock);
             return status;
         }
 
-        *addr = (pj_sockaddr_t*)remote_addr;
+        pj_sockaddr_init(stun_sock->af, addr, NULL, 0);
+        pj_sockaddr_cp(addr, remote_addr);
 
         status = pj_activesock_start_connect(
-                                             *asock, stun_sock->pool, *addr,
-                                             pj_sockaddr_get_len(*addr));
+                                             *asock, stun_sock->pool, addr,
+                                             os->addr_len);
         if (status == PJ_SUCCESS) {
             on_connect_complete(*asock, status);
         } else if (status != PJ_EPENDING) {
             char addrinfo[PJ_INET6_ADDRSTRLEN+8];
             pj_perror(3, stun_sock->pool->obj_name, status, "Failed to connect to %s",
-                      pj_sockaddr_print(*addr, addrinfo, sizeof(addrinfo), 3));
+                      pj_sockaddr_print(addr, addrinfo, sizeof(addrinfo), 3));
             pj_grp_lock_release(stun_sock->grp_lock);
             return status;
         }
@@ -1441,7 +1449,7 @@ PJ_DECL(pj_status_t) pj_stun_sock_reconnect_active(pj_stun_sock *stun_sock,
 {
     for (int i = 0; i <= stun_sock->outgoing_nb; ++i) {
         if (stun_sock->outgoing_socks[i].sock != NULL
-        && pj_sockaddr_cmp(stun_sock->outgoing_socks[i].addr, remote_addr) == 0) {
+        && pj_sockaddr_cmp(&stun_sock->outgoing_socks[i].addr, remote_addr) == 0) {
             pj_activesock_close(stun_sock->outgoing_socks[i].sock);
             return pj_stun_sock_connect(stun_sock, remote_addr, af, i);
         }
@@ -1449,12 +1457,13 @@ PJ_DECL(pj_status_t) pj_stun_sock_reconnect_active(pj_stun_sock *stun_sock,
     return PJ_EINVAL;
 }
 
+
 PJ_DECL(pj_status_t) pj_stun_sock_close(pj_stun_sock *stun_sock,
                                         const pj_sockaddr_t *remote_addr)
 {
     for (int i = 0; i <= stun_sock->outgoing_nb; ++i) {
         if (stun_sock->outgoing_socks[i].sock != NULL
-        && pj_sockaddr_cmp(stun_sock->outgoing_socks[i].addr, remote_addr) == 0) {
+        && pj_sockaddr_cmp(&stun_sock->outgoing_socks[i].addr, remote_addr) == 0) {
             return pj_activesock_close(stun_sock->outgoing_socks[i].sock);
         }
     }
@@ -1468,6 +1477,27 @@ PJ_DECL(pj_status_t) pj_stun_sock_close(pj_stun_sock *stun_sock,
     return PJ_EINVAL;
 }
 
+
+PJ_DECL(pj_status_t) pj_stun_sock_close_all_except(pj_stun_sock *stun_sock, const pj_sockaddr_t *remote_addr)
+{
+    stun_sock->no_new_socket = PJ_TRUE;
+    char addrinfo[PJ_INET6_ADDRSTRLEN+8];
+    for (int i = 0; i <= stun_sock->outgoing_nb; ++i) {
+        if (stun_sock->outgoing_socks[i].sock != NULL
+        && pj_sockaddr_cmp(&stun_sock->outgoing_socks[i].addr, remote_addr) != 0) {
+            pj_activesock_close(stun_sock->outgoing_socks[i].sock);
+        }
+    }
+
+    for (int i = 0; i <= stun_sock->incoming_nb; ++i) {
+        if (stun_sock->incoming_socks[i].sock != NULL
+        && pj_sockaddr_cmp(&stun_sock->incoming_socks[i].addr, remote_addr) != 0) {
+            pj_activesock_close(stun_sock->incoming_socks[i].sock);
+        }
+    }
+    return PJ_SUCCESS;
+}
+
 static pj_bool_t on_connect_complete(pj_activesock_t *asock, pj_status_t status)
 {
     pj_stun_sock *stun_sock;
@@ -1477,7 +1507,7 @@ static pj_bool_t on_connect_complete(pj_activesock_t *asock, pj_status_t status)
     // Get remote connected address
     for (int i = 0 ; i <= stun_sock->outgoing_nb ; ++i) {
         if (stun_sock->outgoing_socks[i].sock == asock) {
-            remote_addr = stun_sock->outgoing_socks[i].addr;
+            remote_addr = &stun_sock->outgoing_socks[i].addr;
         }
     }
     if (!remote_addr) return PJ_FALSE;
@@ -1740,4 +1770,3 @@ pj_stun_session* pj_stun_sock_get_session(pj_stun_sock *stun_sock)
 {
     return stun_sock ? stun_sock->stun_sess : NULL;
 }
-

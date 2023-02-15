@@ -565,6 +565,14 @@ PJ_DECL(pj_status_t) pj_stun_sock_reconnect_active(pj_stun_sock *stun_sock,
 PJ_DECL(pj_status_t) pj_stun_sock_close(pj_stun_sock *stun_sock,
 					const pj_sockaddr_t *remote_addr);
 
+/**
+ * Close all active sockets except the one with remote_addr
+ * @param stun_sock
+ * @param remote_addr    The remote address linked
+ */
+PJ_DECL(pj_status_t) pj_stun_sock_close_all_except(pj_stun_sock *stun_sock,
+					const pj_sockaddr_t *remote_addr);
+
 #endif
 
 /**

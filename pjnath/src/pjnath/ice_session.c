@@ -2035,7 +2035,7 @@ static void on_tcp_connect_timeout(pj_ice_sess* ice)
 	    } else {
 		first_found = PJ_TRUE;
 		if (*ice->cb.close_tcp_connection)
-		    (*ice->cb.close_tcp_connection)(ice, &ice->clist, i);
+		    (*ice->cb.close_tcp_connection)(ice, i);
 
 		check_set_state(ice, check,
 		    PJ_ICE_SESS_CHECK_STATE_FAILED, PJ_ECANCELLED);
@@ -2670,7 +2670,7 @@ static pj_status_t perform_check(pj_ice_sess *ice,
     case PJ_CAND_TCP_ACTIVE:
         switch (check->state) {
         case PJ_ICE_SESS_CHECK_STATE_NEEDS_RETRY:
-            status = (*ice->cb.reconnect_tcp_connection)(ice, clist, check_id);
+            status = (*ice->cb.reconnect_tcp_connection)(ice,check_id);
             break;
         case PJ_ICE_SESS_CHECK_STATE_NEEDS_FIRST_PACKET:
             status = send_connectivity_check(ice, clist, check_id,
@@ -2679,7 +2679,7 @@ static pj_status_t perform_check(pj_ice_sess *ice,
         default:
             pj_timer_heap_cancel_if_active(ice->stun_cfg.timer_heap,
                                            &ice->timer_connect, TIMER_NONE);
-            status = (*ice->cb.wait_tcp_connection)(ice, clist, check_id);
+            status = (*ice->cb.wait_tcp_connection)(ice, check_id);
             if (ice->timer_connect.id != TIMER_NONE) {
                 pj_assert(!"Not expected any timer active");
             } else {
@@ -4413,5 +4413,3 @@ PJ_DEF(pj_status_t) pj_ice_sess_on_rx_pkt(pj_ice_sess *ice,
 
     return status;
 }
-
-
