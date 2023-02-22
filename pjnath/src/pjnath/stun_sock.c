@@ -1481,7 +1481,6 @@ PJ_DECL(pj_status_t) pj_stun_sock_close(pj_stun_sock *stun_sock,
 PJ_DECL(pj_status_t) pj_stun_sock_close_all_except(pj_stun_sock *stun_sock, const pj_sockaddr_t *remote_addr)
 {
     stun_sock->no_new_socket = PJ_TRUE;
-    char addrinfo[PJ_INET6_ADDRSTRLEN+8];
     for (int i = 0; i <= stun_sock->outgoing_nb; ++i) {
         if (stun_sock->outgoing_socks[i].sock != NULL
         && pj_sockaddr_cmp(&stun_sock->outgoing_socks[i].addr, remote_addr) != 0) {
@@ -1503,21 +1502,28 @@ static pj_bool_t on_connect_complete(pj_activesock_t *asock, pj_status_t status)
     pj_stun_sock *stun_sock;
     stun_sock = (pj_stun_sock *)pj_activesock_get_user_data(asock);
 
-    pj_sockaddr_t* remote_addr = NULL;
+    pj_sockaddr remote_addr;
+    pj_bool_t addr_found = PJ_FALSE;
+
     // Get remote connected address
     for (int i = 0 ; i <= stun_sock->outgoing_nb ; ++i) {
         if (stun_sock->outgoing_socks[i].sock == asock) {
-            remote_addr = &stun_sock->outgoing_socks[i].addr;
+	        pj_sockaddr_cp(&remote_addr, &stun_sock->outgoing_socks[i].addr);
+	        addr_found = PJ_TRUE;
+	        break;
         }
     }
-    if (!remote_addr) return PJ_FALSE;
+    if (!addr_found) {
+        return PJ_FALSE;
+    }
 
     pj_stun_session_cb *cb = pj_stun_session_callback(stun_sock->stun_sess);
     if (!cb->on_peer_connection) {
         return PJ_FALSE;
     }
 
-    (cb->on_peer_connection)(stun_sock->stun_sess, status, remote_addr);
+    (cb->on_peer_connection)(stun_sock->stun_sess, status, &remote_addr);
+
     if (status == PJ_SUCCESS) {
         status = pj_activesock_start_read(asock, stun_sock->pool,
                                         stun_sock->cfg.max_pkt_size, 0);
