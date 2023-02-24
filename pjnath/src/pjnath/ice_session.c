@@ -2683,7 +2683,7 @@ static pj_status_t perform_check(pj_ice_sess *ice,
             if (ice->timer_connect.id != TIMER_NONE) {
                 pj_assert(!"Not expected any timer active");
             } else {
-                LOG5((ice->obj_name, 
+                LOG5((ice->obj_name,
                     "Scheduling connection time-out for check %s", 
                     dump_check(ice->tmp.txt, sizeof(ice->tmp.txt), clist, check)));
 
@@ -3100,7 +3100,7 @@ static pj_status_t on_stun_send_msg(pj_stun_session *sess,
 				    void *token,
 				    const void *pkt,
 				    pj_size_t pkt_size,
-				    const pj_sockaddr_t *dst_addr,
+					const pj_sockaddr_t *dst_addr,
 				    unsigned addr_len)
 {
     stun_data *sd = (stun_data*) pj_stun_session_get_user_data(sess);
@@ -3124,9 +3124,8 @@ static pj_status_t on_stun_send_msg(pj_stun_session *sess,
     return status;
 }
 
-static pj_ice_sess_check* get_current_check_at_state(pj_ice_sess *ice,
+static pj_ice_sess_check* get_current_pending_check(pj_ice_sess *ice,
                                                      pj_sockaddr_t *remote_addr,
-                                                     pj_ice_sess_check_state state,
                                                      int *current_check)
 {
     if (!ice || !remote_addr)
@@ -3139,7 +3138,8 @@ static pj_ice_sess_check* get_current_check_at_state(pj_ice_sess *ice,
         pj_ice_sess_check *c = &ice->clist.checks[i];
         /* Host candidate not found this this srflx! */
         if (pj_sockaddr_cmp(remote_addr, &c->rcand->addr) == 0) {
-            if (c->tdata == NULL || c->state != state)
+            if (c->tdata == NULL ||
+                (c->state < PJ_ICE_SESS_CHECK_STATE_SUCCEEDED && c->state >= PJ_ICE_SESS_CHECK_STATE_WAITING))
                 continue;
             /* Match */
             check = c;
@@ -3159,24 +3159,16 @@ void ice_sess_on_peer_connection(pj_ice_sess *ice,
     // connectivity check) This should trigger on_stun_request_complete when
     // finished
     if (!remote_addr)
-	return;
+		return;
 
     pj_grp_lock_acquire(ice->grp_lock);
 
     int current_check = -1;
-    pj_ice_sess_check *check = get_current_check_at_state(ice,remote_addr,
-							  PJ_ICE_SESS_CHECK_STATE_PENDING,
-							  &current_check);
-    if (!check) {
-	// Handle peer reflexive candidates (incoming are still waiting here)
-	check = get_current_check_at_state(ice, remote_addr,
-					   PJ_ICE_SESS_CHECK_STATE_WAITING,
-					   &current_check);
+    pj_ice_sess_check *check = get_current_pending_check(ice,remote_addr, &current_check);
 	if (!check) {
-	    pj_grp_lock_release(ice->grp_lock);
-	    return;
+		pj_grp_lock_release(ice->grp_lock);
+		return;
 	}
-    }
 
     const pj_ice_sess_cand *rcand = check->rcand;
     if (rcand->type == PJ_ICE_CAND_TYPE_RELAYED && (
@@ -3305,22 +3297,14 @@ void ice_sess_on_peer_reset_connection(pj_ice_sess *ice,
 {
     // The TCP link is reset
     if (!remote_addr)
-	return;
+		return;
 
     pj_grp_lock_acquire(ice->grp_lock);
-    pj_ice_sess_check *check = get_current_check_at_state(ice, remote_addr,
-							  PJ_ICE_SESS_CHECK_STATE_PENDING,
-							  NULL);
-    if (!check) {
-	// Just check if it's not the first packet failing
-	check = get_current_check_at_state(ice, remote_addr,
-					   PJ_ICE_SESS_CHECK_STATE_NEEDS_FIRST_PACKET,
-					   NULL);
+    pj_ice_sess_check *check = get_current_pending_check(ice, remote_addr, NULL);
 	if (!check) {
-	    pj_grp_lock_release(ice->grp_lock);
-	    return;
+		pj_grp_lock_release(ice->grp_lock);
+		return;
 	}
-    }
 
     const pj_ice_sess_cand *rcand = check->rcand;
     if (rcand->type == PJ_ICE_CAND_TYPE_RELAYED) {
