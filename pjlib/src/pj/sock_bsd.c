@@ -586,7 +586,8 @@ PJ_DEF(pj_status_t) pj_sock_socket(int af,
             pj_sock_setsockopt(*sock, pj_SOL_TCP(), pj_TCP_USER_TIMEOUT(),
                     &val, sizeof(val));
             val = 1;
-
+            pj_sock_setsockopt(*sock, pj_SOL_TCP(), pj_TCP_NODELAY(),
+                    &val, sizeof(val));
         }
 #if defined(PJ_SOCK_HAS_IPV6_V6ONLY) && PJ_SOCK_HAS_IPV6_V6ONLY != 0
         if (af == PJ_AF_INET6) {
