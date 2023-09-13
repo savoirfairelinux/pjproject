@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "51f54e7a_e7c00dcc",
+        "filename": "pjlib/src/pj/sock_bsd.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 604,
+      "author": {
+        "id": 220
+      },
+      "writtenOn": "2023-09-13T12:45:21Z",
+      "side": 1,
+      "message": "indent ;)",
+      "range": {
+        "startLine": 604,
+        "startChar": 0,
+        "endLine": 604,
+        "endChar": 1
+      },
+      "revId": "97f45c2040c2b0cf6f3349a365b0e900a2267333",
+      "serverId": "1e26b4c1-6b8c-47ff-9df7-501b633d3b5a"
+    }
+  ]
+}
