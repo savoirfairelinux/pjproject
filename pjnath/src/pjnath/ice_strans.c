@@ -2104,10 +2104,8 @@ static pj_status_t send_data(pj_ice_strans *ice_st,
      */
     if (ice_st->ice && ice_st->state <= PJ_ICE_STRANS_STATE_RUNNING) {
         status = pj_ice_sess_send_data(ice_st->ice, comp_id, buf, data_len);
-        if (status == PJ_SUCCESS || status == PJ_EPENDING) {
-            pj_grp_lock_release(ice_st->grp_lock);
-            goto on_return;
-        }
+        pj_grp_lock_release(ice_st->grp_lock);
+        goto on_return;
     }
 
     pj_grp_lock_release(ice_st->grp_lock);
