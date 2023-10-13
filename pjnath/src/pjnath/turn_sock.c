@@ -1269,6 +1269,8 @@ static void turn_on_state(pj_turn_session *sess,
         (*turn_sock->cb.on_state)(turn_sock, old_state, new_state);
     }
 
+    pj_grp_lock_acquire(turn_sock->grp_lock);
+
     /* Make sure user hasn't destroyed us in the callback */
     if (turn_sock->sess && new_state == PJ_TURN_STATE_RESOLVED) {
         pj_turn_session_info info;
@@ -1335,6 +1337,7 @@ static void turn_on_state(pj_turn_session *sess,
             status = pj_sock_socket(turn_sock->af, sock_type, 0, &sock);
             if (status != PJ_SUCCESS) {
                 turn_sock_destroy(turn_sock, status);
+                pj_grp_lock_release(turn_sock->grp_lock);
                 return;
             }
 
@@ -1345,6 +1348,7 @@ static void turn_on_state(pj_turn_session *sess,
             if (status != PJ_SUCCESS) {
                 pj_sock_close(sock);
                 turn_sock_destroy(turn_sock, status);
+                pj_grp_lock_release(turn_sock->grp_lock);
                 return;
             }
             /* Apply QoS, if specified */
@@ -1356,6 +1360,7 @@ static void turn_on_state(pj_turn_session *sess,
             {
                 pj_sock_close(sock);
                 turn_sock_destroy(turn_sock, status);
+                pj_grp_lock_release(turn_sock->grp_lock);
                 return;
             }
 
@@ -1472,6 +1477,7 @@ static void turn_on_state(pj_turn_session *sess,
             }
             if (status != PJ_SUCCESS) {
                 turn_sock_destroy(turn_sock, status);
+                pj_grp_lock_release(turn_sock->grp_lock);
                 return;
             }
             if (turn_sock->cert) {
@@ -1483,6 +1489,7 @@ static void turn_on_state(pj_turn_session *sess,
 
             if (status != PJ_SUCCESS) {
                 turn_sock_destroy(turn_sock, status);
+                pj_grp_lock_release(turn_sock->grp_lock);
                 return;
             }
 
@@ -1500,6 +1507,7 @@ static void turn_on_state(pj_turn_session *sess,
 
         if (status != PJ_SUCCESS) {
             turn_sock_destroy(turn_sock, status);
+            pj_grp_lock_release(turn_sock->grp_lock);
             return;
         }
 
@@ -1542,6 +1550,7 @@ static void turn_on_state(pj_turn_session *sess,
                           pj_sockaddr_print(&info.server, addrtxt,
                                             sizeof(addrtxt), 3)));
             turn_sock_destroy(turn_sock, status);
+            pj_grp_lock_release(turn_sock->grp_lock);
             return;
         }
 
@@ -1560,6 +1569,8 @@ static void turn_on_state(pj_turn_session *sess,
                                           &delay, TIMER_DESTROY,
                                           turn_sock->grp_lock);
     }
+
+    pj_grp_lock_release(turn_sock->grp_lock);
 }
 
 
