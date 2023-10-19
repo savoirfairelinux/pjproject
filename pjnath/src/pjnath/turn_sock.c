@@ -979,12 +979,7 @@ static pj_bool_t on_data_sent(pj_turn_sock *turn_sock,
     }
 
     if (turn_sock->cb.on_data_sent) {
-        pj_ssize_t header_len, sent_size;
-
-        /* Remove the length of packet header from sent size. */
-        header_len = turn_sock->pkt_len - turn_sock->body_len;
-        sent_size = (sent > header_len)? (sent - header_len) : 0;
-        (*turn_sock->cb.on_data_sent)(turn_sock, sent_size);
+        (*turn_sock->cb.on_data_sent)(turn_sock, sent);
     }
 
     return PJ_TRUE;
