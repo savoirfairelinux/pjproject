@@ -178,6 +178,15 @@ pjmedia_transport_loop_create2(pjmedia_endpt *endpt,
     tp->base.op = &transport_udp_op;
     tp->base.type = PJMEDIA_TRANSPORT_TYPE_UDP;
 
+    /* Create group lock */
+    status = pj_grp_lock_create(pool, NULL, &grp_lock);
+    if (status != PJ_SUCCESS)
+        return status;
+
+    tp->base.grp_lock = grp_lock;
+    pj_grp_lock_add_ref(grp_lock);
+    pj_grp_lock_add_handler(grp_lock, pool, tp, &tp_loop_on_destroy);
+
     if (opt) {
         tp->setting = *opt;
     } else {
