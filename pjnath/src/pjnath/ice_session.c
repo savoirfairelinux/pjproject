@@ -3181,49 +3181,49 @@ void ice_sess_on_peer_connection(pj_ice_sess *ice,
 		status == PJ_ERRNO_START_SYS + 104 || status == 130054 /* CONNECTION RESET BY PEER */ ||
 		status == PJ_ERRNO_START_SYS + 111 /* Connection refused */
 		)) {
-        /**
-         * This part of the code is triggered when using ICE over TCP via TURN
-         * In fact, the other peer has to authorize this peer to connect to
-         * the relayed candidate. This is done by set_perm from the other case.
-         * But from this side, we can't know if the peer has authorized us. If it's
-         * not the case, the connection will got a CONNECTION RESET BY PEER status.
-         * In this case, we try to reconnect few times with a delay between two
-         * attempts.
-         */
-        if (check->reconnect_count < PJ_ICE_TCP_MAX_RECONNECTION_COUNT) {
-            check->state = PJ_ICE_SESS_CHECK_STATE_NEEDS_RETRY;
-            check_set_state(ice, check,PJ_ICE_SESS_CHECK_STATE_NEEDS_RETRY,
-                    status);
-            check->reconnect_count++;
-        } else {
-            // Max attempts reached. Fail this check.
-            LOG4((ice->obj_name, "Check %s: connection failed after %d attempts",
-                dump_check(ice->tmp.txt, sizeof(ice->tmp.txt), &ice->clist, check),
-                PJ_ICE_TCP_MAX_RECONNECTION_COUNT));
-            check_set_state(ice, check, PJ_ICE_SESS_CHECK_STATE_FAILED, status);
-            on_check_complete(ice, check);
-        }
-        pj_grp_lock_release(ice->grp_lock);
-        return;
+	/**
+	 * This part of the code is triggered when using ICE over TCP via TURN
+	 * In fact, the other peer has to authorize this peer to connect to
+	 * the relayed candidate. This is done by set_perm from the other case.
+	 * But from this side, we can't know if the peer has authorized us. If it's
+	 * not the case, the connection will got a CONNECTION RESET BY PEER status.
+	 * In this case, we try to reconnect few times with a delay between two
+	 * attempts.
+	 */
+	if (check->reconnect_count < PJ_ICE_TCP_MAX_RECONNECTION_COUNT) {
+		check->state = PJ_ICE_SESS_CHECK_STATE_NEEDS_RETRY;
+		check_set_state(ice, check,PJ_ICE_SESS_CHECK_STATE_NEEDS_RETRY,
+				status);
+		check->reconnect_count++;
+	} else {
+		// Max attempts reached. Fail this check.
+		LOG4((ice->obj_name, "Check %s: connection failed after %d attempts",
+			dump_check(ice->tmp.txt, sizeof(ice->tmp.txt), &ice->clist, check),
+			PJ_ICE_TCP_MAX_RECONNECTION_COUNT));
+		check_set_state(ice, check, PJ_ICE_SESS_CHECK_STATE_FAILED, status);
+		on_check_complete(ice, check);
+	}
+	pj_grp_lock_release(ice->grp_lock);
+	return;
     } else if (status != PJ_SUCCESS) {
-        if (rcand->type == PJ_ICE_CAND_TYPE_RELAYED) {
-            char raddr[PJ_INET6_ADDRSTRLEN + 10];
-            PJ_LOG(4, (ice->obj_name,
-                    "Connection to TURN (%s) failed with status %u",
-                    pj_sockaddr_print(&rcand->addr, raddr, sizeof(raddr), 3), status));
-        }
-        check_set_state(ice, check, PJ_ICE_SESS_CHECK_STATE_FAILED, status);
-        on_check_complete(ice, check);
-        pj_grp_lock_release(ice->grp_lock);
-        return;
+	if (rcand->type == PJ_ICE_CAND_TYPE_RELAYED) {
+		char raddr[PJ_INET6_ADDRSTRLEN + 10];
+		PJ_LOG(4, (ice->obj_name,
+				"Connection to TURN (%s) failed with status %u",
+				pj_sockaddr_print(&rcand->addr, raddr, sizeof(raddr), 3), status));
+	}
+	check_set_state(ice, check, PJ_ICE_SESS_CHECK_STATE_FAILED, status);
+	on_check_complete(ice, check);
+	pj_grp_lock_release(ice->grp_lock);
+	return;
     }
 
     // TCP is correctly connected. Craft the message to send
     const pj_ice_sess_cand *lcand = check->lcand;
     if (check->tdata == NULL) {
-        LOG5((ice->obj_name, "Error sending STUN request, empty data"));
-        pj_grp_lock_release(ice->grp_lock);
-        return;
+	LOG5((ice->obj_name, "Error sending STUN request, empty data"));
+	pj_grp_lock_release(ice->grp_lock);
+	return;
     }
     pj_ice_msg_data *msg_data =
 	PJ_POOL_ZALLOC_T(check->tdata->pool, pj_ice_msg_data);

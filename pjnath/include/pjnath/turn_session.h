@@ -615,20 +615,20 @@ PJ_DECL(pj_status_t) pj_turn_session_shutdown(pj_turn_session *sess);
  * Shutdown TURN client session. This will gracefully deallocate and
  * destroy the client session.
  *
- * @param sess		The TURN client session.
- * @param last_err	Optional error code to be set to the session,
- *			which would be returned back in the \a info
- *			parameter of #pj_turn_session_get_info(). If
- *			this argument value is PJ_SUCCESS, the error
- *			code will not be set. If the session already
- *			has an error code set, this function will not
- *			overwrite that error code either.
+ * @param sess      The TURN client session.
+ * @param last_err  Optional error code to be set to the session,
+ *                  which would be returned back in the \a info
+ *                  parameter of #pj_turn_session_get_info(). If
+ *                  this argument value is PJ_SUCCESS, the error
+ *                  code will not be set. If the session already
+ *                  has an error code set, this function will not
+ *                  overwrite that error code either.
  *
- * @return		PJ_SUCCESS if the operation has been successful,
- *			or the appropriate error code on failure.
+ * @return          PJ_SUCCESS if the operation has been successful,
+ *                  or the appropriate error code on failure.
  */
 PJ_DECL(pj_status_t) pj_turn_session_shutdown2(pj_turn_session *sess,
-					       pj_status_t last_err);
+                                               pj_status_t last_err);
 
 
 /**
