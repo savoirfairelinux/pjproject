@@ -1587,8 +1587,12 @@ static pj_bool_t dataconn_on_data_read(pj_activesock_t *asock,
 
     if (size == 0 && status != PJ_SUCCESS) {
         /* Connection gone, release data connection */
-        dataconn_cleanup(conn);
-        --turn_sock->data_conn_cnt;
+        if (conn->state == DATACONN_STATE_CONN_BINDING) {
+            // TODO cancel request (and do not cleanup there)
+        } else if (conn->state == DATACONN_STATE_READY) {
+            dataconn_cleanup(conn);
+            --turn_sock->data_conn_cnt;
+        }
         pj_grp_lock_release(turn_sock->grp_lock);
         return PJ_FALSE;
     }
