@@ -1669,6 +1669,14 @@ static pj_bool_t dataconn_on_connect_complete(pj_activesock_t *asock,
 
     pj_grp_lock_acquire(turn_sock->grp_lock);
 
+    if (pj_turn_sock_get_user_data(turn_sock) == NULL) {
+        // It's possible for a TURN socket to be destroyed by ice_close_remaining_tcp
+        // after the on_connect_complete event has been put into an ioqueue, but
+        // before the callback is actually called, so we need to check for this.
+        PJ_LOG(4,(turn_sock->obj_name, "Socket is being destroyed, can't be used to establish a data connection"));
+        status = PJ_ECANCELLED;
+    }
+
     if (status == PJ_SUCCESS) {
         status = pj_activesock_start_read(asock, turn_sock->pool,
                                           turn_sock->setting.max_pkt_size, 0);
