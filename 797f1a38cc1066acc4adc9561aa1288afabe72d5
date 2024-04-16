@@ -22,6 +22,30 @@
       },
       "revId": "797f1a38cc1066acc4adc9561aa1288afabe72d5",
       "serverId": "1e26b4c1-6b8c-47ff-9df7-501b633d3b5a"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "dd34153c_24ad5c0c",
+        "filename": "pjnath/src/pjnath/turn_sock.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1672,
+      "author": {
+        "id": 1035
+      },
+      "writtenOn": "2024-04-16T13:59:21Z",
+      "side": 1,
+      "message": "Not as far as I can tell, unfortunately. (That\u0027s also how they do the check at the beginning of the `turn_on_state` function in `ice_strans.c`.)\n\nI originally wanted to do\n```\nif (turn_sock-\u003esess-\u003estate \u003e\u003d PJ_TURN_STATE_DEALLOCATING)\n```\nbut `turn_sock-\u003esess` is of type `pj_struct_session`, which isn\u0027t defined in any header file, only in `turn_session.c`. So it looks like that structure is meant to be opaque to the rest of the library.\n\n`turn_sock` does have an `is_destroying` field, but the problem is that we\u0027re not actually in the \"destroying\" state yet when `dataconn_on_connect_complete` gets called, only in the \"deallocating\" state, so I don\u0027t think we can rely on that.",
+      "parentUuid": "faa1f25b_b772e440",
+      "range": {
+        "startLine": 1672,
+        "startChar": 8,
+        "endLine": 1672,
+        "endChar": 45
+      },
+      "revId": "797f1a38cc1066acc4adc9561aa1288afabe72d5",
+      "serverId": "1e26b4c1-6b8c-47ff-9df7-501b633d3b5a"
     }
   ],
   "submitRequirementResults": []
