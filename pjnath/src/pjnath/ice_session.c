@@ -838,12 +838,12 @@ static PJ_DEF(void) get_invalid_addresses(char** addresses, size_t* size)
 	    return;
 	}
 
-	if (nlmsg_ptr->nlmsg_type == NLMSG_DONE)
-	    break;
-
 	for(; NLMSG_OK(nlmsg_ptr, nlmsg_len);
 	    nlmsg_ptr = NLMSG_NEXT(nlmsg_ptr, nlmsg_len))
 	{
+        if (nlmsg_ptr->nlmsg_type == NLMSG_DONE)
+            goto nlmsg_done;
+
 	    struct ifaddrmsg *ifaddrmsg_ptr;
 	    struct rtattr *rtattr_ptr;
 	    int ifaddrmsg_len;
@@ -886,6 +886,7 @@ static PJ_DEF(void) get_invalid_addresses(char** addresses, size_t* size)
 	    }
 	}
     }
+    nlmsg_done:;
 
     close(fd);
     *size = idx;
