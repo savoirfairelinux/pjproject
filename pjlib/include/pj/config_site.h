@@ -9,7 +9,7 @@
 /*
 * PJSIP settings.
 */
-#define PJSIP_MAX_PKT_LEN                       8000
+#define PJSIP_MAX_PKT_LEN                       65536
 #define PJSIP_TRANSPORT_SERVER_IDLE_TIME        3
 
 /*
