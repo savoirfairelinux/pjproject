@@ -2305,7 +2305,7 @@ static void on_valid_pair(pj_ice_sess *ice)
                 pj_sockaddr_print(&check->lcand->addr, lip, sizeof(lip), 3);
                 pj_sockaddr_print(&check->rcand->addr, rip, sizeof(rip), 3);
 
-                if (tp_typ == TP_TURN) {
+                if (tp_typ == TP_TURN && check->lcand->transport == PJ_CAND_UDP) {
                     /* Activate channel binding for the remote address
                      * for more efficient data transfer using TURN.
                      */
@@ -2424,14 +2424,14 @@ static void on_ice_complete(pj_ice_sess *ice, pj_status_t status)
                         comp->comp_id));
                     }
 #endif
-                    if (tp_typ == TP_TURN) {
-                    /* Activate channel binding for the remote address
-                    * for more efficient data transfer using TURN.
-                    */
-                    status = pj_turn_sock_bind_channel(
-                            comp->turn[tp_idx].sock,
-                            &check->rcand->addr,
-                            sizeof(check->rcand->addr));
+                    if (tp_typ == TP_TURN && check->lcand->transport == PJ_CAND_UDP) {
+                        /* Activate channel binding for the remote address
+                        * for more efficient data transfer using TURN.
+                        */
+                        status = pj_turn_sock_bind_channel(
+                                comp->turn[tp_idx].sock,
+                                &check->rcand->addr,
+                                sizeof(check->rcand->addr));
 
                         /* Disable logging for Send/Data indications */
                         PJ_LOG(5,(ice_st->obj_name,
