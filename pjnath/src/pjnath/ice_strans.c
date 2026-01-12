@@ -268,8 +268,6 @@ struct pj_ice_strans
     pj_uint8_t               rx_buffer[MAX_RTP_SIZE];
     pj_uint16_t              rx_buffer_size;
     pj_uint16_t              rx_wanted_size;
-
-    pj_ssize_t               last_data_len; /**< What the application is waiting. */
 };
 
 
@@ -2194,10 +2192,6 @@ static pj_status_t send_data(pj_ice_strans *ice_st,
             status = pj_stun_sock_sendto(comp->stun[tp_idx].sock, NULL, buf,
                                          (unsigned)data_len, 0, dest_addr,
                                          dest_addr_len);
-            /* Do not count the header */
-            if (add_header) {
-                data_len -= sizeof(pj_uint16_t);
-            }
             goto on_return;
         }
 
@@ -2206,14 +2200,8 @@ static pj_status_t send_data(pj_ice_strans *ice_st,
 
 on_return:
     /* We continue later in on_data_sent() callback. */
-    if (status == PJ_EPENDING) {
-		ice_st->last_data_len = data_len;
-		if (add_header) {
-			// Don't forget the header
-			ice_st->last_data_len += sizeof(pj_uint16_t);
-		}
+    if (status == PJ_EPENDING)
     	return status;
-	}
 
     if (call_cb) {
         on_data_sent(ice_st, (status == PJ_SUCCESS? (pj_ssize_t)data_len: -status));
@@ -2894,8 +2882,7 @@ static pj_bool_t on_data_sent(pj_ice_strans *ice_st, pj_ssize_t sent)
     if (ice_st->destroy_req || !ice_st->is_pending)
         return PJ_TRUE;
 
-    if (ice_st->call_send_cb && ice_st->cb.on_data_sent
-		&& sent == ice_st->last_data_len /* Only app data should be announced */) {
+    if (ice_st->call_send_cb && ice_st->cb.on_data_sent) {
         (*ice_st->cb.on_data_sent)(ice_st, sent);
     }
 
