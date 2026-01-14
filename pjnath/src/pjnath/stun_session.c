@@ -32,6 +32,7 @@ struct pj_stun_session
     pj_bool_t            use_fingerprint;
 
     pj_pool_t           *rx_pool;
+    pj_stun_tx_data     *cur_completed_tdata;
 
 #if PJ_LOG_MAX_LEVEL >= 5
     char                 dump_buf[1000];
@@ -180,6 +181,9 @@ static void destroy_tdata(pj_stun_tx_data *tdata, pj_bool_t force)
     TRACE_((THIS_FILE,
             "tdata %p destroy request, force=%d, tsx=%p, destroying=%d",
             tdata, force, tdata->client_tsx, tdata->is_destroying));
+
+    if (tdata->sess && tdata->sess->cur_completed_tdata == tdata)
+        return;
 
     /* Just return if destroy has been requested before */
     if (tdata->is_destroying)
@@ -479,6 +483,8 @@ static void stun_tsx_on_complete(pj_stun_client_tsx *tsx,
         return;
     }
 
+    sess->cur_completed_tdata = tdata;
+
     /* Handle authentication challenge */
     handle_auth_challenge(sess, tdata, response, src_addr,
                           src_addr_len, &notify_user);
@@ -487,6 +493,8 @@ static void stun_tsx_on_complete(pj_stun_client_tsx *tsx,
         (*sess->cb.on_request_complete)(sess, status, tdata->token, tdata,
                                         response, src_addr, src_addr_len);
     }
+
+    sess->cur_completed_tdata = NULL;
 
     /* Destroy the transmit data. This will remove the transaction
      * from the pending list too.
