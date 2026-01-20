@@ -1071,6 +1071,7 @@ parse_headers:
             /* Init hname just in case parsing fails.
              * Ref: PROTOS #2412
              */
+            hname.ptr = NULL;
             hname.slen = 0;
             
             /* Get hname. */
