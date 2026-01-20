@@ -2265,7 +2265,8 @@ PJ_DEF(pj_ssize_t) pjsip_tpmgr_receive_packet( pjsip_tpmgr *mgr,
                                        ": %s exception when parsing '%.*s' "
                                        "header on line %d col %d",
                                        pj_exception_id_name(err->except_code),
-                                       (int)err->hname.slen, err->hname.ptr,
+                                       (int)err->hname.slen,
+                                       (err->hname.ptr?err->hname.ptr:""),
                                        err->line, err->col);
                 if (len >= (int)sizeof(buf)-(int)tmp.slen) {
                     len = (int)sizeof(buf)-(int)tmp.slen;
