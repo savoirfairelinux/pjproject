@@ -193,6 +193,12 @@ static void on_stun_request_complete(pj_stun_session *stun_sess,
                                      const pj_stun_msg *response,
                                      const pj_sockaddr_t *src_addr,
                                      unsigned src_addr_len);
+
+static void on_request_async_retry(pj_stun_session *sess,
+                                   pj_stun_tx_data *old_tdata,
+                                   pj_stun_tx_data *new_tdata,
+                                   void **token);
+
 static pj_status_t on_stun_rx_indication(pj_stun_session *sess,
                                          const pj_uint8_t *pkt,
                                          unsigned pkt_len,
@@ -312,6 +318,7 @@ static pj_status_t init_comp(pj_ice_sess *ice,
     sess_cb.on_rx_indication = &on_stun_rx_indication;
     sess_cb.on_rx_request = &on_stun_rx_request;
     sess_cb.on_send_msg = &on_stun_send_msg;
+    sess_cb.on_request_async_retry = &on_request_async_retry;
 
     /* Create STUN session for this candidate */
     status = pj_stun_session_create(&ice->stun_cfg, NULL,
@@ -3783,6 +3790,71 @@ static void on_stun_request_complete(pj_stun_session *stun_sess,
     pj_grp_lock_release(ice->grp_lock);
 }
 
+
+
+static void on_request_async_retry(pj_stun_session *sess,
+                                   pj_stun_tx_data *old_tdata,
+                                   pj_stun_tx_data *new_tdata,
+                                   void **token)
+{
+    const pj_ice_msg_data *old_msg_data = (const pj_ice_msg_data*)*token;
+    pj_ice_msg_data *new_msg_data;
+    pj_ice_sess *ice;
+    pj_ice_sess_checklist *clist;
+    pj_ice_sess_check *check;
+    unsigned ckid;
+    unsigned i;
+
+    PJ_UNUSED_ARG(sess);
+
+    /* Allocate new msg_data from new_tdata pool */
+    new_msg_data = PJ_POOL_ZALLOC_T(new_tdata->pool, pj_ice_msg_data);
+
+    /* Copy data */
+    pj_memcpy(new_msg_data, old_msg_data, sizeof(pj_ice_msg_data));
+
+    /* Update pointer in token */
+    *token = new_msg_data;
+
+    /* Update check->tdata */
+    if (!new_msg_data->has_req_data)
+        return;
+
+    ice = new_msg_data->data.req.ice;
+    clist = new_msg_data->data.req.clist;
+    ckid = new_msg_data->data.req.ckid;
+
+    pj_grp_lock_acquire(ice->grp_lock);
+
+    /* Verify if ckid is valid and check is valid */
+    if (ckid < clist->count) {
+        check = &clist->checks[ckid];
+        if (check->tdata == old_tdata) {
+             check->tdata = new_tdata;
+             PJ_LOG(5, (ice->obj_name, "Updated check %d tdata because of retry",
+                        ckid));
+             pj_grp_lock_release(ice->grp_lock);
+             return;
+        }
+    }
+
+    /* Check might have moved due to sorting?
+     * Iterate to find the check with old_tdata
+     */
+    for (i=0; i<clist->count; ++i) {
+        check = &clist->checks[i];
+        if (check->tdata == old_tdata) {
+             check->tdata = new_tdata;
+             new_msg_data->data.req.ckid = i; /* Update ID in token too */
+             PJ_LOG(5, (ice->obj_name, "Updated check %d tdata because of retry",
+                        i));
+             pj_grp_lock_release(ice->grp_lock);
+             return;
+        }
+    }
+
+    pj_grp_lock_release(ice->grp_lock);
+}
 
 /* This callback is called by the STUN session associated with a candidate
  * when it receives incoming request.
