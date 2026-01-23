@@ -1248,13 +1248,14 @@ PJ_DEF(pj_status_t) pj_stun_sock_get_info( pj_stun_sock *stun_sock,
 }
 
 /* Send application data */
-PJ_DEF(pj_status_t) pj_stun_sock_sendto( pj_stun_sock *stun_sock,
-                                         pj_ioqueue_op_key_t *send_key,
-                                         const void *pkt,
-                                         unsigned pkt_len,
-                                         unsigned flag,
-                                         const pj_sockaddr_t *dst_addr,
-                                         unsigned addr_len)
+static pj_status_t stun_sock_sendto( pj_stun_sock *stun_sock,
+                                     pj_ioqueue_op_key_t *send_key,
+                                     const void *pkt,
+                                     unsigned pkt_len,
+                                     unsigned flag,
+                                     const pj_sockaddr_t *dst_addr,
+                                     unsigned addr_len,
+                                     pj_bool_t call_cb)
 {
     pj_ssize_t size;
     pj_status_t status;
@@ -1272,7 +1273,7 @@ PJ_DEF(pj_status_t) pj_stun_sock_sendto( pj_stun_sock *stun_sock,
     }
 
     if (send_key==NULL)
-        send_key = &stun_sock->send_key;
+        send_key = call_cb ? &stun_sock->send_key : &stun_sock->int_send_key;
 
     size = pkt_len;
     if (stun_sock->conn_type == PJ_STUN_TP_UDP) {
@@ -1313,6 +1314,30 @@ PJ_DEF(pj_status_t) pj_stun_sock_sendto( pj_stun_sock *stun_sock,
 
     pj_grp_lock_release(stun_sock->grp_lock);
     return status;
+}
+
+PJ_DEF(pj_status_t) pj_stun_sock_sendto( pj_stun_sock *stun_sock,
+                                         pj_ioqueue_op_key_t *send_key,
+                                         const void *pkt,
+                                         unsigned pkt_len,
+                                         unsigned flag,
+                                         const pj_sockaddr_t *dst_addr,
+                                         unsigned addr_len)
+{
+    return stun_sock_sendto(stun_sock, send_key, pkt, pkt_len, flag,
+        dst_addr, addr_len, PJ_TRUE);
+}
+
+PJ_DEF(pj_status_t) pj_stun_sock_sendto2(pj_stun_sock *stun_sock,
+                                          pj_bool_t call_cb,
+                                          const void *pkt,
+                                          unsigned pkt_len,
+                                          unsigned flag,
+                                          const pj_sockaddr_t *dst_addr,
+                                          unsigned addr_len)
+{
+    return stun_sock_sendto(stun_sock, NULL, pkt, pkt_len, flag,
+        dst_addr, addr_len, call_cb);
 }
 
 #if PJ_HAS_TCP

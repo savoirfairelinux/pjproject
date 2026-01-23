@@ -105,7 +105,8 @@ static pj_status_t ice_tx_pkt(pj_ice_sess *ice,
                               unsigned transport_id,
                               const void *pkt, pj_size_t size,
                               const pj_sockaddr_t *dst_addr,
-                              unsigned dst_addr_len);
+                              unsigned dst_addr_len,
+                              pj_bool_t app_data);
 static void        ice_rx_data(pj_ice_sess *ice,
                                unsigned comp_id,
                                unsigned transport_id,
@@ -2466,7 +2467,8 @@ static pj_status_t ice_tx_pkt(pj_ice_sess *ice,
                               unsigned transport_id,
                               const void *pkt, pj_size_t size,
                               const pj_sockaddr_t *dst_addr,
-                              unsigned dst_addr_len)
+                              unsigned dst_addr_len,
+                              pj_bool_t app_data)
 {
     pj_ice_strans *ice_st = (pj_ice_strans*)ice->user_data;
     pj_ice_strans_comp *comp;
@@ -2545,7 +2547,7 @@ static pj_status_t ice_tx_pkt(pj_ice_sess *ice,
         }
 
         if (comp->stun[tp_idx].sock) {
-            status = pj_stun_sock_sendto(comp->stun[tp_idx].sock, NULL,
+            status = pj_stun_sock_sendto2(comp->stun[tp_idx].sock, app_data,
                         buf, (unsigned)size, 0,
                         dest_addr, dest_addr_len);
         } else {

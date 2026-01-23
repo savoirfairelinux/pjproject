@@ -3133,7 +3133,7 @@ static pj_status_t on_stun_send_msg(pj_stun_session *sess,
     }
 
     status = (*ice->cb.on_tx_pkt)(ice, sd->comp_id, msg_data->transport_id,
-                                  pkt, pkt_size, dst_addr, addr_len);
+                                  pkt, pkt_size, dst_addr, addr_len, PJ_FALSE);
 
     pj_grp_lock_release(ice->grp_lock);
     return status;
@@ -4374,7 +4374,8 @@ PJ_DEF(pj_status_t) pj_ice_sess_send_data(pj_ice_sess *ice,
     status = (*ice->cb.on_tx_pkt)(ice, comp_id, transport_id,
                                   data, data_len,
                                   &addr,
-                                  pj_sockaddr_get_len(&addr));
+                                  pj_sockaddr_get_len(&addr),
+                                  PJ_TRUE);
 
 on_return:
     return status;

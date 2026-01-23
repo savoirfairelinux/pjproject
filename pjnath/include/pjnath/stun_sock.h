@@ -532,6 +532,34 @@ PJ_DECL(pj_status_t) pj_stun_sock_sendto(pj_stun_sock *stun_sock,
                                          unsigned flag,
                                          const pj_sockaddr_t *dst_addr,
                                          unsigned addr_len);
+/**
+ * Send data to the specified address. This function may complete
+ * asynchronously and in this case \a on_data_sent() will optionally
+ * be called depending on the value of \a call_cb.
+ *
+ * @param stun_sock     The STUN transport instance.
+ * @param call_cb       Specifies whether \a on_data_sent should be called
+ *                      if the function completes asynchronously.
+ * @param pkt           The data/packet to be sent to peer.
+ * @param pkt_len       Length of the data.
+ * @param flag          pj_ioqueue_sendto() flag.
+ * @param dst_addr      The remote address.
+ * @param addr_len      Length of the address.
+ *
+ * @return              PJ_SUCCESS if data has been sent immediately, or
+ *                      PJ_EPENDING if data cannot be sent immediately. In
+ *                      this case the \a on_data_sent() callback will be
+ *                      called when data is actually sent if \a call_cb is
+ *                      true. Any other return value indicates error condition.
+ */
+
+PJ_DECL(pj_status_t) pj_stun_sock_sendto2(pj_stun_sock *stun_sock,
+                                          pj_bool_t call_cb,
+                                          const void *pkt,
+                                          unsigned pkt_len,
+                                          unsigned flag,
+                                          const pj_sockaddr_t *dst_addr,
+                                          unsigned addr_len);
 
 
 #if PJ_HAS_TCP

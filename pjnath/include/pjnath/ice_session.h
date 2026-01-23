@@ -595,12 +595,15 @@ typedef struct pj_ice_sess_cb
      * @param size          The size of the packet.
      * @param dst_addr      Packet destination address.
      * @param dst_addr_len  Length of destination address.
+     * @param app_data      Indicates whether the data in the STUN packet is from the
+     *                      application (true) or internal to the ICE session (false).
      */
     pj_status_t (*on_tx_pkt)(pj_ice_sess *ice, unsigned comp_id,
                              unsigned transport_id,
                              const void *pkt, pj_size_t size,
                              const pj_sockaddr_t *dst_addr,
-                             unsigned dst_addr_len);
+                             unsigned dst_addr_len,
+                             pj_bool_t app_data);
 
     /**
      * A mandatory callback which will be called by the ICE session when
