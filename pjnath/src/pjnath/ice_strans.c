@@ -2472,7 +2472,6 @@ static pj_status_t ice_tx_pkt(pj_ice_sess *ice,
     pj_ice_strans_comp *comp;
     pj_status_t status;
     void *buf = (void *)pkt;
-    pj_bool_t use_buf = PJ_FALSE;
 #if defined(ENABLE_TRACE) && (ENABLE_TRACE != 0)
     char daddr[PJ_INET6_ADDRSTRLEN];
 #endif
@@ -2480,21 +2479,6 @@ static pj_status_t ice_tx_pkt(pj_ice_sess *ice,
     unsigned tp_typ = GET_TP_TYPE(transport_id);
 
     PJ_ASSERT_RETURN(comp_id && comp_id <= ice_st->comp_cnt, PJ_EINVAL);
-
-    pj_grp_lock_acquire(ice_st->grp_lock);
-    if (ice_st->num_buf > 0 &&
-        (!ice_st->send_buf ||
-         ice_st->send_buf[ice_st->buf_idx].buffer != pkt))
-    {
-        use_buf = PJ_TRUE;
-        status = use_buffer(ice_st, comp_id, pkt, size, dst_addr,
-                            dst_addr_len, &buf);
-        if (status == PJ_EPENDING || status != PJ_SUCCESS) {
-            pj_grp_lock_release(ice_st->grp_lock);
-            return status;
-        }
-    }
-    pj_grp_lock_release(ice_st->grp_lock);
 
     comp = ice_st->comp[comp_id-1];
 
@@ -2547,9 +2531,8 @@ static pj_status_t ice_tx_pkt(pj_ice_sess *ice,
             {
                 status = pj_sockaddr_synthesize(pj_AF_INET6(),
                                                 &comp->synth_addr, dst_addr);
-                if (status != PJ_SUCCESS) {
-                    goto on_return;
-                }
+                if (status != PJ_SUCCESS)
+                    return status;
 
                 pj_sockaddr_cp(&comp->dst_addr, dst_addr);
                 comp->synth_addr_len = pj_sockaddr_get_len(&comp->synth_addr);
@@ -2571,17 +2554,6 @@ static pj_status_t ice_tx_pkt(pj_ice_sess *ice,
     } else {
         pj_assert(!"Invalid transport ID");
         status = PJ_EINVALIDOP;
-    }
-
-on_return:
-    if (use_buf && status != PJ_EPENDING) {
-        pj_grp_lock_acquire(ice_st->grp_lock);
-        if (ice_st->num_buf > 0) {
-            ice_st->buf_idx = (ice_st->buf_idx + 1) % ice_st->num_buf;
-            pj_assert(ice_st->buf_idx == ice_st->empty_idx);
-        }
-        ice_st->is_pending = PJ_FALSE;
-        pj_grp_lock_release(ice_st->grp_lock);
     }
 
     return status;
