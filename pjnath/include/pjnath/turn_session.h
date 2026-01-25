@@ -651,6 +651,7 @@ PJ_DECL(pj_status_t) pj_turn_session_shutdown2(pj_turn_session *sess,
 PJ_DECL(pj_status_t) pj_turn_session_destroy(pj_turn_session *sess,
                                              pj_status_t last_err);
 
+PJ_DECL(pj_turn_state_t) pj_turn_session_get_state(pj_turn_session *sess);
 
 /**
  * Get the information about this TURN session and the allocation, if

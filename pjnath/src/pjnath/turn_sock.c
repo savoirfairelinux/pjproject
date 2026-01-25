@@ -1278,9 +1278,7 @@ static void turn_on_state(pj_turn_session *sess,
 
     /* Make sure user hasn't destroyed us in the callback */
     if (turn_sock->sess && new_state == PJ_TURN_STATE_RESOLVED) {
-        pj_turn_session_info info;
-        pj_turn_session_get_info(turn_sock->sess, &info);
-        new_state = info.state;
+        new_state = pj_turn_session_get_state(turn_sock->sess);
     }
 
     if (turn_sock->sess && new_state == PJ_TURN_STATE_RESOLVED) {

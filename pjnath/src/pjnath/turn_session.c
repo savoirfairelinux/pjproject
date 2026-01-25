@@ -486,6 +486,11 @@ PJ_DEF(pj_status_t) pj_turn_session_destroy( pj_turn_session *sess,
     return PJ_SUCCESS;
 }
 
+PJ_DEF(pj_turn_state_t) pj_turn_session_get_state(pj_turn_session *sess)
+{
+    PJ_ASSERT_RETURN(sess, PJ_TURN_STATE_NULL);
+    return sess->state;
+}
 
 /*
  * Get TURN session info.
