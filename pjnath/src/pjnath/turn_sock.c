@@ -769,6 +769,12 @@ static pj_bool_t on_connect_complete(pj_turn_sock *turn_sock,
         return PJ_FALSE;
     }
 
+    /* Check if session is being destroyed. */
+    if (pj_turn_session_get_state(turn_sock->sess) >= PJ_TURN_STATE_DESTROYING) {
+        pj_grp_lock_release(turn_sock->grp_lock);
+        return PJ_FALSE;
+    }
+
     if (status != PJ_SUCCESS) {
         if (turn_sock->conn_type == PJ_TURN_TP_UDP)
             sess_fail(turn_sock, "UDP connect() error", status);
