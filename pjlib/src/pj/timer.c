@@ -897,6 +897,10 @@ PJ_DEF(unsigned) pj_timer_heap_poll( pj_timer_heap_t *ht,
 
         grp_lock = node->_grp_lock;
         node->_grp_lock = NULL;
+        if (valid && grp_lock) {
+            pj_grp_lock_add_ref(grp_lock);
+        }
+
         if (GET_FIELD(node, cb) != entry->cb ||
             GET_FIELD(node, user_data) != entry->user_data)
         {
@@ -924,8 +928,11 @@ PJ_DEF(unsigned) pj_timer_heap_poll( pj_timer_heap_t *ht,
         if (valid && entry->cb)
             (*entry->cb)(ht, entry);
 
-        if (valid && grp_lock)
-            pj_grp_lock_dec_ref(grp_lock);
+        if (valid && grp_lock) {
+            if (pj_grp_lock_dec_ref(grp_lock) != PJ_EGONE) {
+            	pj_grp_lock_dec_ref(grp_lock);
+            }
+        }
 
         lock_timer_heap(ht);
         /* Now, the timer is really free for re-use. */
