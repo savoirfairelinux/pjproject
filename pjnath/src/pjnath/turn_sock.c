@@ -424,8 +424,14 @@ static void destroy(pj_turn_sock *turn_sock)
     }
     turn_sock->data_conn_cnt = 0;
 
-    pj_grp_lock_dec_ref(turn_sock->grp_lock);
-    pj_grp_lock_release(turn_sock->grp_lock);
+    {
+        /* Save grp_lock pointer before dec_ref, since dec_ref may
+         * destroy turn_sock (and its pool) if this is the last reference.
+         */
+        pj_grp_lock_t *grp_lock = turn_sock->grp_lock;
+        pj_grp_lock_release(grp_lock);
+        pj_grp_lock_dec_ref(grp_lock);
+    }
 }
 
 static void turn_sock_destroy(pj_turn_sock *turn_sock,

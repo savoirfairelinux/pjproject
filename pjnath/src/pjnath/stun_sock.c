@@ -1032,8 +1032,14 @@ PJ_DEF(pj_status_t) pj_stun_sock_destroy(pj_stun_sock *stun_sock)
     if (stun_sock->stun_sess) {
         pj_stun_session_destroy(stun_sock->stun_sess);
     }
-    pj_grp_lock_dec_ref(stun_sock->grp_lock);
-    pj_grp_lock_release(stun_sock->grp_lock);
+    {
+        /* Save grp_lock pointer before dec_ref, since dec_ref may
+         * destroy stun_sock (and its pool) if this is the last reference.
+         */
+        pj_grp_lock_t *grp_lock = stun_sock->grp_lock;
+        pj_grp_lock_release(grp_lock);
+        pj_grp_lock_dec_ref(grp_lock);
+    }
     return PJ_SUCCESS;
 }
 

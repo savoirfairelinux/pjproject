@@ -549,8 +549,14 @@ static void destroy_ice(pj_ice_sess *ice,
                                    &ice->clist.timer,
                                    PJ_FALSE);
 
-    pj_grp_lock_dec_ref(ice->grp_lock);
-    pj_grp_lock_release(ice->grp_lock);
+    {
+        /* Save grp_lock pointer before dec_ref, since dec_ref may
+         * destroy ice session (and its pool) if this is the last reference.
+         */
+        pj_grp_lock_t *grp_lock = ice->grp_lock;
+        pj_grp_lock_release(grp_lock);
+        pj_grp_lock_dec_ref(grp_lock);
+    }
 }
 
 

@@ -1290,8 +1290,16 @@ static void destroy_ice_st(pj_ice_strans *ice_st)
         }
     }
 
-    pj_grp_lock_dec_ref(ice_st->grp_lock);
-    pj_grp_lock_release(ice_st->grp_lock);
+    {
+        /* Save grp_lock pointer before dec_ref, since dec_ref may
+         * destroy ice_st (and its pool) if this is the last reference.
+         * Release the lock first (while ice_st is still valid due to
+         * the creation ref), then dec_ref which may trigger destruction.
+         */
+        pj_grp_lock_t *grp_lock = ice_st->grp_lock;
+        pj_grp_lock_release(grp_lock);
+        pj_grp_lock_dec_ref(grp_lock);
+    }
 
     pj_log_pop_indent();
 }
