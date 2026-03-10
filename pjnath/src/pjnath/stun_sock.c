@@ -806,7 +806,6 @@ static pj_bool_t on_data_read(pj_activesock_t *asock,
     }
     return parse_rx_packet(asock, data, size, rx_addr, sock_addr_len);
 #else
-    pj_grp_lock_release(stun_sock->grp_lock);
     return PJ_FALSE;
 #endif
 }
@@ -856,7 +855,6 @@ static pj_bool_t on_stun_sock_accept(pj_activesock_t *active_sock,
 				  &activesock_cb, stun_sock, asock);
     if (status != PJ_SUCCESS) {
         pj_stun_sock_destroy(stun_sock);
-        pj_grp_lock_release(stun_sock->grp_lock);
         return status;
     }
 
