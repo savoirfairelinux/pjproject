@@ -171,6 +171,7 @@ static void handle_incoming_check(pj_ice_sess *ice,
                                   const pj_ice_rx_check *rcheck);
 static void end_of_cand_ind_timer(pj_timer_heap_t *th,
                                   pj_timer_entry *te);
+static pj_bool_t comp_has_candidates(const pj_ice_sess *ice, unsigned comp_id);
 
 /* These are the callbacks registered to the STUN sessions */
 static pj_status_t on_stun_send_msg(pj_stun_session *sess,
@@ -1516,6 +1517,21 @@ static void on_timer(pj_timer_heap_t *th, pj_timer_entry *te)
 static void ice_keep_alive(pj_ice_sess *ice, pj_bool_t send_now)
 {
     if (send_now) {
+        /* Advance comp_ka past disabled components (port=0 streams) */
+        {
+            unsigned attempts = 0;
+            while (attempts < ice->comp_cnt) {
+                if (comp_has_candidates(ice, ice->comp_ka + 1))
+                    break;
+                ice->comp_ka = (ice->comp_ka + 1) % ice->comp_cnt;
+                ++attempts;
+            }
+            if (attempts == ice->comp_cnt) {
+                /* No active components found - skip keep-alive */
+                goto schedule_next;
+            }
+        }
+
         /* Send Binding Indication for the component */
         pj_ice_sess_comp *comp = &ice->comp[ice->comp_ka];
         pj_stun_tx_data *tdata;
@@ -1567,6 +1583,7 @@ done:
         ice->comp_ka = (ice->comp_ka + 1) % ice->comp_cnt;
     }
 
+schedule_next:
     if (ice->timer.id == TIMER_NONE) {
         pj_time_val delay = { 0, 0 };
 
@@ -1657,6 +1674,24 @@ static void update_comp_check(pj_ice_sess *ice, unsigned comp_id,
     }
 }
 
+/* Returns PJ_TRUE if comp_id has at least one candidate in the
+ * checklist (i.e., belongs to an active, non-rejected m= section).
+ * Components with no candidates (port=0 in SDP answer) must be skipped in all
+ * ICE completion checks so that video can succeed when audio is rejected. */
+static pj_bool_t comp_has_candidates(const pj_ice_sess *ice, unsigned comp_id)
+{
+    unsigned i;
+    for (i = 0; i < ice->clist.count; ++i) {
+        if (ice->clist.checks[i].lcand->comp_id == comp_id) {
+            return PJ_TRUE;
+        }
+    }
+    LOG4((ice->obj_name,
+          "comp_id=%u has NO candidates - disabled m= section, will skip",
+          comp_id));
+    return PJ_FALSE;
+}
+
 /* Check if ICE nego completed */
 static pj_bool_t check_ice_complete(pj_ice_sess *ice)
 {
@@ -1682,13 +1717,17 @@ static pj_bool_t check_ice_complete(pj_ice_sess *ice)
 
     /* See if all components have nominated pair. If they do, then mark
      * ICE processing as success, otherwise wait.
+     * skip components with no candidates (disabled m= sections).
      */
     for (i=0; i<ice->comp_cnt; ++i) {
+        unsigned comp_id = i + 1;
+        if (!comp_has_candidates(ice, comp_id))
+            continue; /* disabled stream - skip */
         if (ice->comp[i].nominated_check == NULL)
             break;
     }
     if (i == ice->comp_cnt) {
-        /* All components have nominated pair */
+        /* All active components have nominated pair */
         on_ice_complete(ice, PJ_SUCCESS);
         return PJ_TRUE;
     }
@@ -1789,12 +1828,15 @@ static pj_bool_t check_ice_complete(pj_ice_sess *ice)
         */
         if (ice->role == PJ_ICE_SESS_ROLE_CONTROLLED) {
             for (i=0; i < ice->comp_cnt; ++i) {
+                unsigned comp_id = i + 1;
+                if (!comp_has_candidates(ice, comp_id))
+                    continue; /* disabled stream - skip */
                 if (ice->comp[i].valid_check == NULL)
                     break;
             }
 
             if (i < ice->comp_cnt) {
-                /* This component ID doesn't have valid pair.
+                /* This active component doesn't have valid pair.
                 * Mark ICE as failed.
                 */
                 on_ice_complete(ice, PJNATH_EICEFAILED);
@@ -1842,12 +1884,15 @@ static pj_bool_t check_ice_complete(pj_ice_sess *ice)
             * sending nominated check, otherwise we have failed.
             */
             for (i=0; i<ice->comp_cnt; ++i) {
+                unsigned comp_id = i + 1;
+                if (!comp_has_candidates(ice, comp_id))
+                    continue; /* disabled stream - skip */
                 if (ice->comp[i].valid_check == NULL)
                     break;
             }
 
             if (i < ice->comp_cnt) {
-                /* At least one component doesn't have a valid check. Mark
+                /* At least one active component doesn't have a valid check. Mark
                 * ICE as failed.
                 */
                 on_ice_complete(ice, PJNATH_EICEFAILED);
@@ -1877,12 +1922,15 @@ static pj_bool_t check_ice_complete(pj_ice_sess *ice)
         pj_time_val delay;
 
         for (i=0; i<ice->comp_cnt; ++i) {
+            unsigned comp_id = i + 1;
+            if (!comp_has_candidates(ice, comp_id))
+                continue; /* disabled stream - skip */
             if (ice->comp[i].valid_check == NULL)
                 break;
         }
 
         if (i < ice->comp_cnt) {
-            /* Some components still don't have valid pair, continue
+            /* Some active components still don't have valid pair, continue
              * processing.
              */
             return PJ_FALSE;
@@ -2780,6 +2828,12 @@ static pj_status_t start_periodic_check(pj_timer_heap_t *th,
         for (i=0; i<ice->comp_cnt && !check; ++i) {
             unsigned j;
             const pj_ice_sess_check *vc = ice->comp[i].valid_check;
+            unsigned comp_id = i + 1;
+            /* skip disabled components (no candidates, port=0 stream) */
+            if (!comp_has_candidates(ice, comp_id)) {
+                pj_assert(vc == NULL);
+                continue;
+            }
             for (j=0; j<ice->clist.count; ++j) {
                 pj_ice_sess_check *c = &ice->clist.checks[j];
                 if (c->state == PJ_ICE_SESS_CHECK_STATE_WAITING &&
@@ -2931,6 +2985,12 @@ static void start_nominated_check(pj_ice_sess *ice)
     for (i=0; i<ice->comp_cnt; ++i) {
         unsigned j;
         const pj_ice_sess_check *vc = ice->comp[i].valid_check;
+        unsigned comp_id = i + 1;
+        /* skip disabled components (no candidates, port=0 stream) */
+        if (!comp_has_candidates(ice, comp_id)) {
+            pj_assert(vc == NULL);
+            continue;
+        }
 
         pj_assert(ice->comp[i].nominated_check == NULL);
         pj_assert(vc->err_code == PJ_SUCCESS);
