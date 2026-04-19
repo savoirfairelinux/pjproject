@@ -2728,6 +2728,7 @@ static pj_status_t perform_check(pj_ice_sess *ice,
     } else if (status == PJ_EPENDING) {
 	check_set_state(ice, check, PJ_ICE_SESS_CHECK_STATE_PENDING, status);
     } else if (check->rcand->type == PJ_ICE_CAND_TYPE_RELAYED) {
+    check->tdata = NULL;
 	/* TODO (sblin) remove this - https://github.com/coturn/coturn/issues/408 */
 	check_set_state(ice, check, PJ_ICE_SESS_CHECK_STATE_NEEDS_FIRST_PACKET,
 			status);
@@ -3270,6 +3271,9 @@ void ice_sess_on_peer_connection(pj_ice_sess *ice,
 					       pj_sockaddr_get_len(&rcand->addr),
 					       check->tdata);
 
+    if (status != PJ_SUCCESS && status != PJ_EPENDING)
+        check->tdata = NULL;
+
     if (rcand->type == PJ_ICE_CAND_TYPE_RELAYED && (
 		status == PJ_ERRNO_START_SYS + 104 || status == 130054 || /* CONNECTION RESET BY PEER */
 		status == PJ_ERRNO_START_SYS + 32 /* EPIPE */ ||
@@ -3310,7 +3314,6 @@ void ice_sess_on_peer_connection(pj_ice_sess *ice,
 					"STUN send message to TURN (%s) failed with status %u",
 					pj_sockaddr_print(&rcand->addr, raddr, sizeof(raddr), 3), status));
 		}
-		check->tdata = NULL;
 		pjnath_perror(ice->obj_name, "Error sending STUN request (on peer connection)", status);
 		pj_log_pop_indent();
 		check_set_state(ice, check, PJ_ICE_SESS_CHECK_STATE_FAILED, status);
@@ -3376,10 +3379,11 @@ void ice_sess_on_peer_packet(pj_ice_sess *ice,
     }
 
     pj_grp_lock_acquire(ice->grp_lock);
+    int current_check = -1;
     pj_ice_sess_check *check =
 	get_current_check_at_state(ice, remote_addr,
 				   PJ_ICE_SESS_CHECK_STATE_NEEDS_FIRST_PACKET,
-				   NULL);
+                   &current_check);
     if (!check) {
 	pj_grp_lock_release(ice->grp_lock);
 	return;
@@ -3387,8 +3391,13 @@ void ice_sess_on_peer_packet(pj_ice_sess *ice,
 
     const pj_ice_sess_cand *rcand = check->rcand;
     if (rcand->type == PJ_ICE_CAND_TYPE_RELAYED) {
-	check_set_state(ice, check,
-			PJ_ICE_SESS_CHECK_STATE_IN_PROGRESS, PJ_SUCCESS);
+    if (check->tdata) {
+        check_set_state(ice, check,
+                PJ_ICE_SESS_CHECK_STATE_IN_PROGRESS, PJ_SUCCESS);
+    } else if (current_check >= 0) {
+        perform_check(ice, &ice->clist, (unsigned) current_check,
+              check->nominated || ice->is_nominating);
+    }
     }
 	pj_grp_lock_release(ice->grp_lock);
 }
@@ -4257,7 +4266,9 @@ static void handle_incoming_check(pj_ice_sess *ice,
             LOG5((ice->obj_name, "Triggered check for check %d not performed "
                   "because it's in progress. Retransmitting", i));
             pj_log_push_indent();
-            pj_stun_session_retransmit_req(comp->stun_sess, c->tdata, PJ_FALSE);
+        if (c->tdata)
+            pj_stun_session_retransmit_req(comp->stun_sess, c->tdata,
+                               PJ_FALSE);
             pj_log_pop_indent();
 
         } else if (c->state == PJ_ICE_SESS_CHECK_STATE_SUCCEEDED) {
