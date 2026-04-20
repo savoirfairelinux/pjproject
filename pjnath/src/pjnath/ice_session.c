@@ -4331,7 +4331,7 @@ static void handle_incoming_check(pj_ice_sess *ice,
      */
 
     /*
-     * 7.2.1.4.  Triggered Checks
+     * 7.3.1.4.  Triggered Checks
      *
      * Now that we have local and remote candidate, check if we already
      * have this pair in our checklist.
@@ -4383,14 +4383,33 @@ static void handle_incoming_check(pj_ice_sess *ice,
                 pj_log_pop_indent();
             }
         } else if (c->state == PJ_ICE_SESS_CHECK_STATE_IN_PROGRESS) {
-            /* Should retransmit immediately
+            /* RFC 8445 §7.3.1.4: cancel the in-progress transaction,
+             * move the pair back to Waiting, and start a new triggered
+             * check.  Do NOT simply retransmit the ongoing request.
              */
-            LOG5((ice->obj_name, "Triggered check for check %d not performed "
-                  "because it's in progress. Retransmitting", i));
+            LOG5((ice->obj_name, "Restarting triggered check for check %d "
+                  "because it is already in progress", i));
             pj_log_push_indent();
-        if (c->tdata)
-            pj_stun_session_retransmit_req(comp->stun_sess, c->tdata,
-                               PJ_FALSE);
+            if (c->tdata) {
+                pj_stun_session_cancel_req(comp->stun_sess, c->tdata,
+                                           PJ_FALSE, PJ_ECANCELLED);
+            }
+            c->tdata = NULL;
+            check_set_state(ice, c, PJ_ICE_SESS_CHECK_STATE_WAITING,
+                            PJ_SUCCESS);
+            {
+                pj_bool_t nominate = (c->nominated ||
+                                      (ice->is_nominating &&
+                                       ice->opt.aggressive));
+                pj_status_t status;
+
+                status = perform_check(ice, &ice->clist, i, nominate);
+                if (status != PJ_SUCCESS && status != PJ_EPENDING) {
+                    check_set_state(ice, c, PJ_ICE_SESS_CHECK_STATE_FAILED,
+                                    status);
+                    on_check_complete(ice, c);
+                }
+            }
             pj_log_pop_indent();
 
         } else if (c->state == PJ_ICE_SESS_CHECK_STATE_SUCCEEDED) {
