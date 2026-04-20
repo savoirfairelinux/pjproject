@@ -3527,10 +3527,15 @@ static void on_stun_request_complete(pj_stun_session *stun_sess,
         char errmsg[PJ_ERR_MSG_SIZE];
 
         if (status==PJ_STATUS_FROM_STUN_CODE(PJ_STUN_SC_ROLE_CONFLICT)) {
+            /* Save candidate pointers before any re-sort triggered by the
+             * role change; ckid and check may become stale afterwards.
+             */
+            const pj_ice_sess_cand *role_lcand = check->lcand;
+            const pj_ice_sess_cand *role_rcand = check->rcand;
 
-            /* Role conclict response.
+            /* Role conflict response.
              *
-             * 7.1.2.1.  Failure Cases:
+             * RFC 8445 §7.2.5.1:
              *
              * If the request had contained the ICE-CONTROLLED attribute,
              * the agent MUST switch to the controlling role if it has not
@@ -3539,7 +3544,7 @@ static void on_stun_request_complete(pj_stun_session *stun_sess,
              * controlled role if it has not already done so.  Once it has
              * switched, the agent MUST immediately retry the request with
              * the ICE-CONTROLLING or ICE-CONTROLLED attribute reflecting
-             * its new role.
+             * its new role.  The agent MUST change the tiebreaker value.
              */
             pj_ice_sess_role new_role = PJ_ICE_SESS_ROLE_UNKNOWN;
             pj_stun_msg *req = tdata->msg;
@@ -3558,14 +3563,46 @@ static void on_stun_request_complete(pj_stun_session *stun_sess,
                 LOG4((ice->obj_name,
                       "Changing role because of role conflict response"));
                 pj_ice_sess_change_role(ice, new_role);
+                refresh_role_dependent_check_state(ice);
+            }
+
+            /* RFC 8445 §16.1: agent MUST change tiebreaker after 487. */
+            ice->tie_breaker.u32.hi = pj_rand();
+            ice->tie_breaker.u32.lo = pj_rand();
+            LOG4((ice->obj_name,
+                  "Generated new tiebreaker after role conflict"));
+
+            /* Re-locate the check by candidate pointers; the sort that
+             * followed the role change may have moved pairs within clist.
+             */
+            for (i=0; i<clist->count; ++i) {
+                if (clist->checks[i].lcand == role_lcand &&
+                    clist->checks[i].rcand == role_rcand)
+                {
+                    check = &clist->checks[i];
+                    ckid = i;
+                    break;
+                }
+            }
+            if (i == clist->count) {
+                LOG4((ice->obj_name,
+                      "Unable to retry role-conflicted check: pair was "
+                      "not found after reprioritization"));
+                pj_grp_lock_release(ice->grp_lock);
+                return;
             }
 
             /* Resend request */
             LOG4((ice->obj_name, "Resending check because of role conflict"));
             pj_log_push_indent();
             check_set_state(ice, check, PJ_ICE_SESS_CHECK_STATE_WAITING, 0);
-            perform_check(ice, clist, ckid,
-                          check->nominated || ice->is_nominating);
+            status = perform_check(ice, clist, ckid,
+                                   check->nominated || ice->is_nominating);
+            if (status != PJ_SUCCESS && status != PJ_EPENDING) {
+                check_set_state(ice, check, PJ_ICE_SESS_CHECK_STATE_FAILED,
+                                status);
+                on_check_complete(ice, check);
+            }
             pj_log_pop_indent();
             pj_grp_lock_release(ice->grp_lock);
             return;
