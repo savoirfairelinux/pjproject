@@ -1664,6 +1664,50 @@ static void update_comp_check(pj_ice_sess *ice, unsigned comp_id,
     }
 }
 
+static void recompute_checklist_prios(pj_ice_sess *ice,
+                                      pj_ice_sess_checklist *clist)
+{
+    unsigned i;
+
+    for (i=0; i<clist->count; ++i) {
+        pj_ice_sess_check *check = &clist->checks[i];
+
+        check->prio = CALC_CHECK_PRIO(ice, check->lcand, check->rcand);
+    }
+
+    if (clist->count > 1)
+        sort_checklist(ice, clist);
+}
+
+/* Recompute role-dependent pair priorities and refresh the per-component
+ * valid_check / nominated_check pointers after an ICE role change.
+ * Must be called with ice->grp_lock held.
+ */
+static void refresh_role_dependent_check_state(pj_ice_sess *ice)
+{
+    unsigned i;
+
+    if (ice->clist.count)
+        recompute_checklist_prios(ice, &ice->clist);
+
+    if (ice->valid_list.count)
+        recompute_checklist_prios(ice, &ice->valid_list);
+
+    /* Reset per-component pointers; they are stored by address and become
+     * stale after a sort that may have moved pairs within the arrays.
+     */
+    for (i=0; i<ice->comp_cnt; ++i) {
+        ice->comp[i].valid_check = NULL;
+        ice->comp[i].nominated_check = NULL;
+    }
+
+    for (i=0; i<ice->valid_list.count; ++i) {
+        pj_ice_sess_check *check = &ice->valid_list.checks[i];
+
+        update_comp_check(ice, check->lcand->comp_id, check);
+    }
+}
+
 /* Check if ICE nego completed */
 static pj_bool_t check_ice_complete(pj_ice_sess *ice)
 {
@@ -4003,6 +4047,7 @@ static pj_status_t on_stun_rx_request(pj_stun_session *sess,
             LOG4((ice->obj_name,
                   "Changing role because of ICE-CONTROLLING attribute"));
             pj_ice_sess_change_role(ice, PJ_ICE_SESS_ROLE_CONTROLLED);
+            refresh_role_dependent_check_state(ice);
         } else {
             /* Generate 487 response */
             pj_stun_session_respond(sess, rdata, PJ_STUN_SC_ROLE_CONFLICT,
@@ -4023,10 +4068,11 @@ static pj_status_t on_stun_rx_request(pj_stun_session *sess,
             pj_grp_lock_release(ice->grp_lock);
             return PJ_SUCCESS;
         } else {
-            /* Switch role to controlled */
+            /* Switch role to controlling */
             LOG4((ice->obj_name,
                   "Changing role because of ICE-CONTROLLED attribute"));
             pj_ice_sess_change_role(ice, PJ_ICE_SESS_ROLE_CONTROLLING);
+            refresh_role_dependent_check_state(ice);
         }
     }
 
