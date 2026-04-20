@@ -4366,22 +4366,24 @@ static void handle_incoming_check(pj_ice_sess *ice,
         if (c->state == PJ_ICE_SESS_CHECK_STATE_FROZEN ||
             c->state == PJ_ICE_SESS_CHECK_STATE_WAITING)
         {
-            /* If we are nominating in regular nomination, don't nominate this
-             * triggered check immediately, just wait for its scheduled check.
+            /* Triggered checks are always executed; they must not inherit
+             * USE-CANDIDATE unless in aggressive mode.
              */
-            if (ice->is_nominating && !ice->opt.aggressive) {
-                LOG5((ice->obj_name, "Triggered check for check %d not "
-                      "performed because nomination is in progress", i));
-            } else {
-                /* See if we shall nominate this check */
-                pj_bool_t nominate = (c->nominated || ice->is_nominating);
+            pj_bool_t nominate = (c->nominated ||
+                                  (ice->is_nominating &&
+                                   ice->opt.aggressive));
+            pj_status_t status;
 
-                LOG5((ice->obj_name, "Performing triggered check for "
-                      "check %d",i));
-                pj_log_push_indent();
-                perform_check(ice, &ice->clist, i, nominate);
-                pj_log_pop_indent();
+            LOG5((ice->obj_name, "Performing triggered check for "
+                  "check %d",i));
+            pj_log_push_indent();
+            status = perform_check(ice, &ice->clist, i, nominate);
+            if (status != PJ_SUCCESS && status != PJ_EPENDING) {
+                check_set_state(ice, c, PJ_ICE_SESS_CHECK_STATE_FAILED,
+                                status);
+                on_check_complete(ice, c);
             }
+            pj_log_pop_indent();
         } else if (c->state == PJ_ICE_SESS_CHECK_STATE_IN_PROGRESS) {
             /* RFC 8445 §7.3.1.4: cancel the in-progress transaction,
              * move the pair back to Waiting, and start a new triggered
@@ -4474,28 +4476,20 @@ static void handle_incoming_check(pj_ice_sess *ice,
 
         LOG4((ice->obj_name, "New triggered check added: %d", check_id));
 
-        /* If we are nominating in regular nomination, don't nominate this
-         * newly found pair.
-         */
-        if (ice->is_nominating && !ice->opt.aggressive) {
-            LOG5((ice->obj_name, "Triggered check for check %d not "
-                  "performed because nomination is in progress", check_id));
-
-            /* Just in case the periodic check has been stopped (due to no more
-             * pair to check), let's restart it for this pair.
-             */
-            if (!pj_timer_entry_running(&ice->clist.timer)) {
-                pj_time_val delay = {0, 0};
-                pj_timer_heap_schedule_w_grp_lock(ice->stun_cfg.timer_heap,
-                                                  &ice->clist.timer, &delay,
-                                                  PJ_TRUE, ice->grp_lock);
-            }
-        } else {
-            pj_bool_t nominate;
-            nominate = (c->nominated || ice->is_nominating);
+        {
+            /* Triggered checks always run; nominate only in aggressive mode. */
+            pj_bool_t nominate = (c->nominated ||
+                                  (ice->is_nominating &&
+                                   ice->opt.aggressive));
+            pj_status_t status;
 
             pj_log_push_indent();
-            perform_check(ice, &ice->clist, check_id, nominate);
+            status = perform_check(ice, &ice->clist, check_id, nominate);
+            if (status != PJ_SUCCESS && status != PJ_EPENDING) {
+                check_set_state(ice, c, PJ_ICE_SESS_CHECK_STATE_FAILED,
+                                status);
+                on_check_complete(ice, c);
+            }
             pj_log_pop_indent();
         }
 
