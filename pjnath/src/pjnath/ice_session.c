@@ -353,7 +353,7 @@ static pj_status_t init_comp(pj_ice_sess *ice,
 /* Init options with default values */
 PJ_DEF(void) pj_ice_sess_options_default(pj_ice_sess_options *opt)
 {
-    opt->aggressive = PJ_TRUE;
+    opt->aggressive = PJ_FALSE;
     opt->nominated_check_delay = PJ_ICE_NOMINATED_CHECK_DELAY;
     opt->controlled_agent_want_nom_timeout =
         ICE_CONTROLLED_AGENT_WAIT_NOMINATION_TIMEOUT;
