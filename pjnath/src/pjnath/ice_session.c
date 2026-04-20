@@ -194,10 +194,10 @@ static void on_stun_request_complete(pj_stun_session *stun_sess,
                                      const pj_sockaddr_t *src_addr,
                                      unsigned src_addr_len);
 
-static void on_request_async_retry(pj_stun_session *sess,
-                                   pj_stun_tx_data *old_tdata,
-                                   pj_stun_tx_data *new_tdata,
-                                   void **token);
+static pj_status_t on_request_async_retry(pj_stun_session *sess,
+                                          pj_stun_tx_data *old_tdata,
+                                          pj_stun_tx_data *new_tdata,
+                                          void **token);
 
 static pj_status_t on_stun_rx_indication(pj_stun_session *sess,
                                          const pj_uint8_t *pkt,
@@ -3428,7 +3428,7 @@ static void on_stun_request_complete(pj_stun_session *stun_sess,
     ice = msg_data->data.req.ice;
     clist = msg_data->data.req.clist;
     ckid = msg_data->data.req.ckid;
-    check = &clist->checks[ckid];
+    check = NULL;
 
     pj_grp_lock_acquire(ice->grp_lock);
 
@@ -3447,8 +3447,11 @@ static void on_stun_request_complete(pj_stun_session *stun_sess,
         return;
     }
 
+    if (ckid < clist->count)
+        check = &clist->checks[ckid];
+
     /* Verify check (check ID may change as trickle ICE re-sort the list */
-    if (tdata != check->tdata) {
+    if (!check || tdata != check->tdata) {
         /* Okay, it was re-sorted, lookup using lcand & rcand */
         for (i = 0; i < clist->count; ++i) {
             if (clist->checks[i].lcand == msg_data->data.req.lcand &&
@@ -3461,7 +3464,6 @@ static void on_stun_request_complete(pj_stun_session *stun_sess,
         }
         if (i == clist->count) {
             /* The check may have been pruned (due to low prio) */
-            check->tdata = NULL;
             pj_grp_lock_release(ice->grp_lock);
             return;
         }
@@ -3801,10 +3803,10 @@ static void on_stun_request_complete(pj_stun_session *stun_sess,
 
 
 
-static void on_request_async_retry(pj_stun_session *sess,
-                                   pj_stun_tx_data *old_tdata,
-                                   pj_stun_tx_data *new_tdata,
-                                   void **token)
+static pj_status_t on_request_async_retry(pj_stun_session *sess,
+                                          pj_stun_tx_data *old_tdata,
+                                          pj_stun_tx_data *new_tdata,
+                                          void **token)
 {
     const pj_ice_msg_data *old_msg_data = (const pj_ice_msg_data*)*token;
     pj_ice_msg_data *new_msg_data;
@@ -3816,18 +3818,20 @@ static void on_request_async_retry(pj_stun_session *sess,
 
     PJ_UNUSED_ARG(sess);
 
+    if (!old_msg_data)
+        return PJ_EINVAL;
+
     /* Allocate new msg_data from new_tdata pool */
     new_msg_data = PJ_POOL_ZALLOC_T(new_tdata->pool, pj_ice_msg_data);
 
     /* Copy data */
     pj_memcpy(new_msg_data, old_msg_data, sizeof(pj_ice_msg_data));
 
-    /* Update pointer in token */
-    *token = new_msg_data;
-
     /* Update check->tdata */
-    if (!new_msg_data->has_req_data)
-        return;
+    if (!new_msg_data->has_req_data) {
+        *token = new_msg_data;
+        return PJ_SUCCESS;
+    }
 
     ice = new_msg_data->data.req.ice;
     clist = new_msg_data->data.req.clist;
@@ -3840,10 +3844,11 @@ static void on_request_async_retry(pj_stun_session *sess,
         check = &clist->checks[ckid];
         if (check->tdata == old_tdata) {
              check->tdata = new_tdata;
+             *token = new_msg_data;
              PJ_LOG(5, (ice->obj_name, "Updated check %d tdata because of retry",
                         ckid));
              pj_grp_lock_release(ice->grp_lock);
-             return;
+             return PJ_SUCCESS;
         }
     }
 
@@ -3854,15 +3859,21 @@ static void on_request_async_retry(pj_stun_session *sess,
         check = &clist->checks[i];
         if (check->tdata == old_tdata) {
              check->tdata = new_tdata;
+             *token = new_msg_data;
              new_msg_data->data.req.ckid = i; /* Update ID in token too */
              PJ_LOG(5, (ice->obj_name, "Updated check %d tdata because of retry",
                         i));
              pj_grp_lock_release(ice->grp_lock);
-             return;
+             return PJ_SUCCESS;
         }
     }
 
     pj_grp_lock_release(ice->grp_lock);
+
+    PJ_LOG(4, (ice->obj_name,
+               "Ignoring STUN auth retry because check %d is no longer tracked",
+               ckid));
+    return PJ_ENOTFOUND;
 }
 
 /* This callback is called by the STUN session associated with a candidate

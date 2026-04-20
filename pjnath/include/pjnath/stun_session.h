@@ -375,11 +375,15 @@ typedef struct pj_stun_session_cb
      *                      associated with the old transaction, because the
      *                      old transaction will be destroyed after this
      *                      callback returns.
+     *
+     * @return              PJ_SUCCESS when the application state has been
+     *                      rebound to the new transaction. Any other status
+     *                      will abort the retry.
      */
-    void (*on_request_async_retry)(pj_stun_session *sess,
-                                   pj_stun_tx_data *old_tdata,
-                                   pj_stun_tx_data *new_tdata,
-                                   void **token);
+    pj_status_t (*on_request_async_retry)(pj_stun_session *sess,
+                                          pj_stun_tx_data *old_tdata,
+                                          pj_stun_tx_data *new_tdata,
+                                          void **token);
 
 } pj_stun_session_cb;
 
