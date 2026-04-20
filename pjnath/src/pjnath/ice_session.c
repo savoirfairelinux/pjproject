@@ -3893,6 +3893,8 @@ static pj_status_t on_stun_rx_request(pj_stun_session *sess,
     pj_ice_sess *ice;
     pj_stun_priority_attr *prio_attr;
     pj_stun_use_candidate_attr *uc_attr;
+    pj_stun_uint64_attr *controlling_attr;
+    pj_stun_uint64_attr *controlled_attr;
     pj_stun_uint64_attr *role_attr;
     pj_stun_tx_data *tdata;
     pj_ice_rx_check *rcheck, tmp_rcheck;
@@ -3935,6 +3937,9 @@ static pj_status_t on_stun_rx_request(pj_stun_session *sess,
                 pj_stun_msg_find_attr(msg, PJ_STUN_ATTR_PRIORITY, 0);
     if (prio_attr == NULL) {
         LOG5((ice->obj_name, "Received Binding request with no PRIORITY"));
+        pj_stun_session_respond(sess, rdata, PJ_STUN_SC_BAD_REQUEST,
+                                NULL, token, PJ_TRUE,
+                                src_addr, src_addr_len);
         pj_grp_lock_release(ice->grp_lock);
         return PJ_SUCCESS;
     }
@@ -3945,11 +3950,34 @@ static pj_status_t on_stun_rx_request(pj_stun_session *sess,
 
 
     /* Get ICE-CONTROLLING or ICE-CONTROLLED */
-    role_attr = (pj_stun_uint64_attr*)
-                pj_stun_msg_find_attr(msg, PJ_STUN_ATTR_ICE_CONTROLLING, 0);
-    if (role_attr == NULL) {
-        role_attr = (pj_stun_uint64_attr*)
-                    pj_stun_msg_find_attr(msg, PJ_STUN_ATTR_ICE_CONTROLLED, 0);
+    controlling_attr = (pj_stun_uint64_attr*)
+                       pj_stun_msg_find_attr(msg,
+                                             PJ_STUN_ATTR_ICE_CONTROLLING, 0);
+    controlled_attr = (pj_stun_uint64_attr*)
+                      pj_stun_msg_find_attr(msg,
+                                            PJ_STUN_ATTR_ICE_CONTROLLED, 0);
+    if ((controlling_attr == NULL && controlled_attr == NULL) ||
+        (controlling_attr != NULL && controlled_attr != NULL))
+    {
+        LOG5((ice->obj_name,
+              "Received Binding request with invalid ICE role attributes"));
+        pj_stun_session_respond(sess, rdata, PJ_STUN_SC_BAD_REQUEST,
+                                NULL, token, PJ_TRUE,
+                                src_addr, src_addr_len);
+        pj_grp_lock_release(ice->grp_lock);
+        return PJ_SUCCESS;
+    }
+    role_attr = controlling_attr ? controlling_attr : controlled_attr;
+
+    if (uc_attr && role_attr->hdr.type == PJ_STUN_ATTR_ICE_CONTROLLED) {
+        LOG5((ice->obj_name,
+              "Received Binding request with USE-CANDIDATE from controlled "
+              "agent"));
+        pj_stun_session_respond(sess, rdata, PJ_STUN_SC_BAD_REQUEST,
+                                NULL, token, PJ_TRUE,
+                                src_addr, src_addr_len);
+        pj_grp_lock_release(ice->grp_lock);
+        return PJ_SUCCESS;
     }
 
     /* Handle the case when request comes before SDP answer is received.
