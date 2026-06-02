@@ -2621,6 +2621,16 @@ static pj_status_t perform_check(pj_ice_sess *ice,
          dump_check(ice->tmp.txt, sizeof(ice->tmp.txt), clist, check)));
     pj_log_push_indent();
 
+    /* Drop any request that is still attached to this check before creating a
+     * new one. Otherwise the back-pointer below would be overwritten and the
+     * previous transaction (owned by the STUN session) would be stranded,
+     * leaving check->tdata referring to memory that may already be freed.
+     */
+    if (check->tdata) {
+        pj_stun_session_cancel_req(comp->stun_sess, check->tdata, PJ_FALSE, 0);
+        check->tdata = NULL;
+    }
+
     /* Create request */
     status = pj_stun_session_create_req(comp->stun_sess,
                                         PJ_STUN_BINDING_REQUEST, PJ_STUN_MAGIC,
@@ -3270,6 +3280,12 @@ void ice_sess_on_peer_connection(pj_ice_sess *ice,
 					       pj_sockaddr_get_len(&rcand->addr),
 					       check->tdata);
 
+    /* On any failure other than success/pending the STUN session has already
+     * destroyed check->tdata, so drop our now dangling reference to it.
+     */
+    if (status != PJ_SUCCESS && status != PJ_EPENDING)
+	check->tdata = NULL;
+
     if (rcand->type == PJ_ICE_CAND_TYPE_RELAYED && (
 		status == PJ_ERRNO_START_SYS + 104 || status == 130054 || /* CONNECTION RESET BY PEER */
 		status == PJ_ERRNO_START_SYS + 32 /* EPIPE */ ||
@@ -3310,7 +3326,6 @@ void ice_sess_on_peer_connection(pj_ice_sess *ice,
 					"STUN send message to TURN (%s) failed with status %u",
 					pj_sockaddr_print(&rcand->addr, raddr, sizeof(raddr), 3), status));
 		}
-		check->tdata = NULL;
 		pjnath_perror(ice->obj_name, "Error sending STUN request (on peer connection)", status);
 		pj_log_pop_indent();
 		check_set_state(ice, check, PJ_ICE_SESS_CHECK_STATE_FAILED, status);
@@ -3376,10 +3391,11 @@ void ice_sess_on_peer_packet(pj_ice_sess *ice,
     }
 
     pj_grp_lock_acquire(ice->grp_lock);
+    int current_check = -1;
     pj_ice_sess_check *check =
 	get_current_check_at_state(ice, remote_addr,
 				   PJ_ICE_SESS_CHECK_STATE_NEEDS_FIRST_PACKET,
-				   NULL);
+				   &current_check);
     if (!check) {
 	pj_grp_lock_release(ice->grp_lock);
 	return;
@@ -3387,8 +3403,17 @@ void ice_sess_on_peer_packet(pj_ice_sess *ice,
 
     const pj_ice_sess_cand *rcand = check->rcand;
     if (rcand->type == PJ_ICE_CAND_TYPE_RELAYED) {
-	check_set_state(ice, check,
-			PJ_ICE_SESS_CHECK_STATE_IN_PROGRESS, PJ_SUCCESS);
+	if (check->tdata) {
+	    /* The request is still alive, just mark it in progress. */
+	    check_set_state(ice, check,
+			    PJ_ICE_SESS_CHECK_STATE_IN_PROGRESS, PJ_SUCCESS);
+	} else if (current_check >= 0) {
+	    /* The earlier send failed and dropped the request; build a fresh
+	     * one now that the relayed connection is usable.
+	     */
+	    perform_check(ice, &ice->clist, (unsigned)current_check,
+			  check->nominated || ice->is_nominating);
+	}
     }
 	pj_grp_lock_release(ice->grp_lock);
 }
@@ -3419,7 +3444,7 @@ static void on_stun_request_complete(pj_stun_session *stun_sess,
     ice = msg_data->data.req.ice;
     clist = msg_data->data.req.clist;
     ckid = msg_data->data.req.ckid;
-    check = &clist->checks[ckid];
+    check = NULL;
 
     pj_grp_lock_acquire(ice->grp_lock);
 
@@ -3438,8 +3463,15 @@ static void on_stun_request_complete(pj_stun_session *stun_sess,
         return;
     }
 
+    /* Resolve the check now that the list is stable. The ckid stored in the
+     * token may be stale (the list is re-sorted by trickle ICE) or even out
+     * of range, so bounds-check before indexing.
+     */
+    if (ckid < clist->count)
+        check = &clist->checks[ckid];
+
     /* Verify check (check ID may change as trickle ICE re-sort the list */
-    if (tdata != check->tdata) {
+    if (!check || tdata != check->tdata) {
         /* Okay, it was re-sorted, lookup using lcand & rcand */
         for (i = 0; i < clist->count; ++i) {
             if (clist->checks[i].lcand == msg_data->data.req.lcand &&
@@ -3451,17 +3483,22 @@ static void on_stun_request_complete(pj_stun_session *stun_sess,
             }
         }
         if (i == clist->count) {
-            /* The check may have been pruned (due to low prio) */
-            check->tdata = NULL;
+            /* The check may have been pruned (due to low prio). Do not touch
+             * check->tdata here: we no longer have the matching check, and the
+             * original slot may now reference a different, still pending
+             * transaction.
+             */
             pj_grp_lock_release(ice->grp_lock);
             return;
         }
     }
 
-    /* Mark STUN transaction as complete */
-    // Find 'corner case ...'.
-    //pj_assert(tdata == check->tdata);
-    check->tdata = NULL;
+    /* Mark STUN transaction as complete. Only clear the back-pointer when it
+     * still refers to the transaction that just completed, so a newer request
+     * (e.g. one rebound by an async auth retry) is preserved.
+     */
+    if (check->tdata == tdata)
+        check->tdata = NULL;
 
     /* Init lcand to NULL. lcand will be found from the mapped address
      * found in the response.
@@ -4257,7 +4294,9 @@ static void handle_incoming_check(pj_ice_sess *ice,
             LOG5((ice->obj_name, "Triggered check for check %d not performed "
                   "because it's in progress. Retransmitting", i));
             pj_log_push_indent();
-            pj_stun_session_retransmit_req(comp->stun_sess, c->tdata, PJ_FALSE);
+            if (c->tdata)
+                pj_stun_session_retransmit_req(comp->stun_sess, c->tdata,
+                                               PJ_FALSE);
             pj_log_pop_indent();
 
         } else if (c->state == PJ_ICE_SESS_CHECK_STATE_SUCCEEDED) {
