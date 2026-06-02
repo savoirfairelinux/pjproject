@@ -2621,6 +2621,19 @@ static pj_status_t perform_check(pj_ice_sess *ice,
          dump_check(ice->tmp.txt, sizeof(ice->tmp.txt), clist, check)));
     pj_log_push_indent();
 
+    /* If a previous request for this check is still pending (e.g. during
+     * TCP/TURN reconnection where perform_check() may run again before the
+     * earlier transaction has completed), cancel and release it first.
+     * Otherwise the back-pointer below would be overwritten while the old
+     * transaction is still alive, leaving check->tdata dangling once that
+     * transaction is destroyed.
+     */
+    if (check->tdata) {
+        pj_stun_session_cancel_req(comp->stun_sess, check->tdata,
+                                   PJ_FALSE, 0);
+        check->tdata = NULL;
+    }
+
     /* Create request */
     status = pj_stun_session_create_req(comp->stun_sess,
                                         PJ_STUN_BINDING_REQUEST, PJ_STUN_MAGIC,
@@ -3451,17 +3464,25 @@ static void on_stun_request_complete(pj_stun_session *stun_sess,
             }
         }
         if (i == clist->count) {
-            /* The check may have been pruned (due to low prio) */
-            check->tdata = NULL;
+            /* The check may have been pruned (due to low prio). Only clear
+             * the back-pointer when it still refers to the completing tdata,
+             * to avoid clobbering a newer in-flight request.
+             */
+            if (check->tdata == tdata)
+                check->tdata = NULL;
             pj_grp_lock_release(ice->grp_lock);
             return;
         }
     }
 
-    /* Mark STUN transaction as complete */
+    /* Mark STUN transaction as complete. Only clear the back-pointer when it
+     * refers to the tdata that just completed; otherwise the check has been
+     * re-armed with a newer request that must remain live.
+     */
     // Find 'corner case ...'.
     //pj_assert(tdata == check->tdata);
-    check->tdata = NULL;
+    if (check->tdata == tdata)
+        check->tdata = NULL;
 
     /* Init lcand to NULL. lcand will be found from the mapped address
      * found in the response.
