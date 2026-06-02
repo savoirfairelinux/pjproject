@@ -441,9 +441,32 @@ static pj_status_t handle_auth_challenge(pj_stun_session *sess,
 
         {
             void *token = request->token;
+
+            /* Retry the request with authentication. Send it first so that the
+             * new transaction is live before we hand its pointer to the
+             * application; if the send fails the STUN session has already
+             * destroyed the new tdata.
+             */
+            status = pj_stun_session_send_msg(sess, token, PJ_TRUE,
+                                              request->retransmit, src_addr,
+                                              src_addr_len, tdata);
+            if (status != PJ_SUCCESS && status != PJ_EPENDING)
+                return status;
+
+            /* Notify the application so it can move any state that referenced
+             * the old transaction onto the new one. If it can no longer track
+             * the request, abort the retry and drop the new transaction rather
+             * than leaving a dangling reference behind.
+             */
             if (sess->cb.on_request_async_retry) {
-                (*sess->cb.on_request_async_retry)(sess, (pj_stun_tx_data*)request,
-                                                   tdata, &token);
+                status = (*sess->cb.on_request_async_retry)(
+                             sess, (pj_stun_tx_data*)request, tdata, &token);
+                if (status != PJ_SUCCESS) {
+                    LOG_ERR_(sess, "Aborting async authentication retry", status);
+                    destroy_tdata(tdata, PJ_TRUE);
+                    return status;
+                }
+                tdata->token = token;
             }
 
             /* Will retry the request with authentication, no need to
@@ -452,11 +475,6 @@ static pj_status_t handle_auth_challenge(pj_stun_session *sess,
             *notify_user = PJ_FALSE;
 
             PJ_LOG(4,(SNAME(sess), "Retrying request with new authentication"));
-
-            /* Retry the request */
-            status = pj_stun_session_send_msg(sess, token, PJ_TRUE,
-                                              request->retransmit, src_addr,
-                                              src_addr_len, tdata);
         }
 
     } else {

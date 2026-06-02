@@ -194,10 +194,10 @@ static void on_stun_request_complete(pj_stun_session *stun_sess,
                                      const pj_sockaddr_t *src_addr,
                                      unsigned src_addr_len);
 
-static void on_request_async_retry(pj_stun_session *sess,
-                                   pj_stun_tx_data *old_tdata,
-                                   pj_stun_tx_data *new_tdata,
-                                   void **token);
+static pj_status_t on_request_async_retry(pj_stun_session *sess,
+                                          pj_stun_tx_data *old_tdata,
+                                          pj_stun_tx_data *new_tdata,
+                                          void **token);
 
 static pj_status_t on_stun_rx_indication(pj_stun_session *sess,
                                          const pj_uint8_t *pkt,
@@ -3829,10 +3829,10 @@ static void on_stun_request_complete(pj_stun_session *stun_sess,
 
 
 
-static void on_request_async_retry(pj_stun_session *sess,
-                                   pj_stun_tx_data *old_tdata,
-                                   pj_stun_tx_data *new_tdata,
-                                   void **token)
+static pj_status_t on_request_async_retry(pj_stun_session *sess,
+                                          pj_stun_tx_data *old_tdata,
+                                          pj_stun_tx_data *new_tdata,
+                                          void **token)
 {
     const pj_ice_msg_data *old_msg_data = (const pj_ice_msg_data*)*token;
     pj_ice_msg_data *new_msg_data;
@@ -3850,12 +3850,13 @@ static void on_request_async_retry(pj_stun_session *sess,
     /* Copy data */
     pj_memcpy(new_msg_data, old_msg_data, sizeof(pj_ice_msg_data));
 
-    /* Update pointer in token */
-    *token = new_msg_data;
-
-    /* Update check->tdata */
-    if (!new_msg_data->has_req_data)
-        return;
+    /* Non connectivity-check requests (e.g. TURN allocate/refresh) don't track
+     * a check; just hand over the copied token.
+     */
+    if (!new_msg_data->has_req_data) {
+        *token = new_msg_data;
+        return PJ_SUCCESS;
+    }
 
     ice = new_msg_data->data.req.ice;
     clist = new_msg_data->data.req.clist;
@@ -3863,15 +3864,16 @@ static void on_request_async_retry(pj_stun_session *sess,
 
     pj_grp_lock_acquire(ice->grp_lock);
 
-    /* Verify if ckid is valid and check is valid */
+    /* Verify if ckid is valid and still points at the old transaction */
     if (ckid < clist->count) {
         check = &clist->checks[ckid];
         if (check->tdata == old_tdata) {
              check->tdata = new_tdata;
+             *token = new_msg_data;
              PJ_LOG(5, (ice->obj_name, "Updated check %d tdata because of retry",
                         ckid));
              pj_grp_lock_release(ice->grp_lock);
-             return;
+             return PJ_SUCCESS;
         }
     }
 
@@ -3883,14 +3885,20 @@ static void on_request_async_retry(pj_stun_session *sess,
         if (check->tdata == old_tdata) {
              check->tdata = new_tdata;
              new_msg_data->data.req.ckid = i; /* Update ID in token too */
+             *token = new_msg_data;
              PJ_LOG(5, (ice->obj_name, "Updated check %d tdata because of retry",
                         i));
              pj_grp_lock_release(ice->grp_lock);
-             return;
+             return PJ_SUCCESS;
         }
     }
 
+    /* The check no longer references this request (completed, pruned or
+     * already replaced). Abort the retry so the caller drops the freshly
+     * created transaction instead of leaving a dangling back-pointer.
+     */
     pj_grp_lock_release(ice->grp_lock);
+    return PJ_ENOTFOUND;
 }
 
 /* This callback is called by the STUN session associated with a candidate
