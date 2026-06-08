@@ -439,25 +439,17 @@ static pj_status_t handle_auth_challenge(pj_stun_session *sess,
                 pj_stun_attr_clone(tdata->pool, asrc);
         }
 
-        {
-            void *token = request->token;
-            if (sess->cb.on_request_async_retry) {
-                (*sess->cb.on_request_async_retry)(sess, (pj_stun_tx_data*)request,
-                                                   tdata, &token);
-            }
+        /* Will retry the request with authentication, no need to
+         * notify user.
+         */
+        *notify_user = PJ_FALSE;
 
-            /* Will retry the request with authentication, no need to
-             * notify user.
-             */
-            *notify_user = PJ_FALSE;
+        PJ_LOG(4,(SNAME(sess), "Retrying request with new authentication"));
 
-            PJ_LOG(4,(SNAME(sess), "Retrying request with new authentication"));
-
-            /* Retry the request */
-            status = pj_stun_session_send_msg(sess, token, PJ_TRUE,
-                                              request->retransmit, src_addr,
-                                              src_addr_len, tdata);
-        }
+        /* Retry the request */
+        status = pj_stun_session_send_msg(sess, request->token, PJ_TRUE,
+                                          request->retransmit, src_addr,
+                                          src_addr_len, tdata);
 
     } else {
         sess->auth_retry = 0;

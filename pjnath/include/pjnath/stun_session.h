@@ -361,26 +361,6 @@ typedef struct pj_stun_session_cb
     void (*on_peer_packet)(pj_stun_session *sess,
                            pj_sockaddr_t* remote_addr);
 
-    /**
-     * Callback notification when the STUN session automatically resends
-     * the request, for example to retry authentication. When this callback
-     * is implemented, application may update the pointer to the transaction
-     * data if it keeps one.
-     *
-     * @param sess          The STUN session.
-     * @param old_tdata     The previous transaction data.
-     * @param new_tdata     The new transaction data.
-     * @param token         The token associated with the request. Application
-     *                      may update this token if the token life-cycle is
-     *                      associated with the old transaction, because the
-     *                      old transaction will be destroyed after this
-     *                      callback returns.
-     */
-    void (*on_request_async_retry)(pj_stun_session *sess,
-                                   pj_stun_tx_data *old_tdata,
-                                   pj_stun_tx_data *new_tdata,
-                                   void **token);
-
 } pj_stun_session_cb;
 
 
