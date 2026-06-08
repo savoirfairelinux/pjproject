@@ -1152,15 +1152,10 @@ PJ_DEF(pj_status_t) pj_stun_session_cancel_req( pj_stun_session *sess,
 {
     PJ_ASSERT_RETURN(sess && tdata, PJ_EINVAL);
     PJ_ASSERT_RETURN(!notify || notify_status!=PJ_SUCCESS, PJ_EINVAL);
+    PJ_ASSERT_RETURN(PJ_STUN_IS_REQUEST(tdata->msg->hdr.type), PJ_EINVAL);
 
     /* Lock the session and prevent user from destroying us in the callback */
     pj_grp_lock_acquire(sess->grp_lock);
-
-    if (!tdata->msg || !PJ_STUN_IS_REQUEST(tdata->msg->hdr.type)) {
-        pj_grp_lock_release(sess->grp_lock);
-        return PJ_EINVAL;
-    }
-
     if (sess->is_destroying) {
         pj_grp_lock_release(sess->grp_lock);
         return PJ_EINVALIDOP;
