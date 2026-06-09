@@ -791,9 +791,6 @@ static pj_bool_t on_data_read(pj_activesock_t *asock,
 	if (stun_sock->outgoing_socks[i].sock == asock) {
 	    rx_addr       = &stun_sock->outgoing_socks[i].addr;
 	    sock_addr_len = pj_sockaddr_get_len(rx_addr);
-	    if (cb && (cb->on_peer_packet))
-		(cb->on_peer_packet)(stun_sock->stun_sess,
-				     &stun_sock->outgoing_socks[i].addr);
 	}
 
     if (rx_addr == NULL && stun_sock->incoming_nb != -1) {

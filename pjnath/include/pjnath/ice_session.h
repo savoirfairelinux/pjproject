@@ -389,14 +389,6 @@ typedef enum pj_ice_sess_check_state
     PJ_ICE_SESS_CHECK_STATE_NEEDS_RETRY,
 
     /**
-     * TODO (sblin): REMOVE THIS! - https://github.com/coturn/coturn/issues/408
-     * For now, this status is only used because sometimes, the first packet
-     * doesn't receive any response. So, we retry to send the packet every
-     * 50 loops.
-     */
-    PJ_ICE_SESS_CHECK_STATE_NEEDS_FIRST_PACKET,
-
-    /**
      * A check has not been performed for this pair, and can be
      * performed as soon as it is the highest priority Waiting pair on
      * the check list.
@@ -1258,18 +1250,6 @@ PJ_DECL(void) ice_sess_on_peer_connection(pj_ice_sess *ice,
 PJ_DECL(void) ice_sess_on_peer_reset_connection(pj_ice_sess *ice,
 						pj_uint8_t transport_id,
 						pj_sockaddr_t* remote_addr);
-
-/**
- * Notification when ICE session get a new packet
- * Used to remove the PJ_ICE_SESS_CHECK_STATE_NEEDS_FIRST_PACKET status
- *
- * @param ice          The ICE session.
- * @param transport_id Related transport
- * @param remote_addr  Connected remove address
- */
-PJ_DECL(void) ice_sess_on_peer_packet(pj_ice_sess *ice,
-				      pj_uint8_t transport_id,
-				      pj_sockaddr_t* remote_addr);
 
 
 /**

@@ -2666,41 +2666,6 @@ static void on_peer_reset_connection(pj_stun_session* sess,
     pj_grp_lock_dec_ref(ice_st->grp_lock);
 }
 
-static void on_peer_packet(pj_stun_session* sess, pj_sockaddr_t* remote_addr)
-{
-
-    if (!sess || !remote_addr)
-        return;
-
-    pj_stun_sock       *stun_sock;
-    sock_user_data     *data;
-    pj_ice_strans_comp *comp;
-    pj_ice_strans      *ice_st;
-
-    stun_sock = (pj_stun_sock *)pj_stun_session_get_user_data(sess);
-    /* We have disassociated ourselves from the STUN session */
-    if (!stun_sock)
-        return;
-
-    data = (sock_user_data *)pj_stun_sock_get_user_data(stun_sock);
-    /* We have disassociated ourselves from the STUN socket */
-    if (!data)
-        return;
-
-    comp = data->comp;
-    if (!comp)
-        return;
-
-    ice_st = comp->ice_st;
-    /* Incorrect ICE */
-    if (!ice_st || !ice_st->ice)
-        return;
-
-    pj_grp_lock_add_ref(ice_st->grp_lock);
-    ice_sess_on_peer_packet(ice_st->ice, data->transport_id, remote_addr);
-    pj_grp_lock_dec_ref(ice_st->grp_lock);
-}
-
 #if PJ_HAS_TCP
 static pj_status_t ice_wait_tcp_connection(pj_ice_sess *ice,
                                            unsigned check_id)
@@ -2734,7 +2699,6 @@ static pj_status_t ice_wait_tcp_connection(pj_ice_sess *ice,
             &on_peer_connection;
         pj_stun_session_callback(sess)->on_peer_reset_connection =
             &on_peer_reset_connection;
-        pj_stun_session_callback(sess)->on_peer_packet = &on_peer_packet;
 
         return pj_stun_sock_connect_active(st_comp->stun[idx].sock,
                                            &rcand->addr,
@@ -2777,7 +2741,6 @@ static pj_status_t ice_reconnect_tcp_connection(pj_ice_sess *ice,
             &on_peer_connection;
         pj_stun_session_callback(sess)->on_peer_reset_connection =
             &on_peer_reset_connection;
-        pj_stun_session_callback(sess)->on_peer_packet = &on_peer_packet;
         return pj_stun_sock_reconnect_active(st_comp->stun[idx].sock,
                                              &rcand->addr,
                                              rcand->addr.addr.sa_family);

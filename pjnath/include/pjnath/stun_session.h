@@ -352,15 +352,6 @@ typedef struct pj_stun_session_cb
                                      pj_sockaddr_t*
                                      remote_addr);
 
-    /**
-     * Notification when STUN connection is resetted (TCP only).
-     *
-     * @param stun_session  The STUN session.
-     * @param remote_addr   The remote resetted
-     */
-    void (*on_peer_packet)(pj_stun_session *sess,
-                           pj_sockaddr_t* remote_addr);
-
 } pj_stun_session_cb;
 
 

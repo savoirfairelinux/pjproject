@@ -144,8 +144,6 @@ typedef struct timer_data
 {
     pj_ice_sess             *ice;
     pj_ice_sess_checklist   *clist;
-    /* TODO (remove), for now, needed for the NEEDS_FIRST_PACKET state */
-    unsigned                first_packet_counter;
 } timer_data;
 
 
@@ -2473,7 +2471,6 @@ PJ_DEF(pj_status_t) pj_ice_sess_create_check_list(
     td = PJ_POOL_ZALLOC_T(ice->pool, timer_data);
     td->ice = ice;
     td->clist = clist;
-    td->first_packet_counter = 1;
     clist->timer.user_data = (void*)td;
     clist->timer.cb = &periodic_timer;
 
@@ -2676,10 +2673,6 @@ static pj_status_t perform_check(pj_ice_sess *ice,
         case PJ_ICE_SESS_CHECK_STATE_NEEDS_RETRY:
             status = (*ice->cb.reconnect_tcp_connection)(ice,check_id);
             break;
-        case PJ_ICE_SESS_CHECK_STATE_NEEDS_FIRST_PACKET:
-            status = send_connectivity_check(ice, clist, check_id,
-                                             nominate, msg_data);
-            break;
         default:
             pj_timer_heap_cancel_if_active(ice->stun_cfg.timer_heap,
                                            &ice->timer_connect, TIMER_NONE);
@@ -2720,10 +2713,6 @@ static pj_status_t perform_check(pj_ice_sess *ice,
 			status);
     } else if (status == PJ_EPENDING) {
 	check_set_state(ice, check, PJ_ICE_SESS_CHECK_STATE_PENDING, status);
-    } else if (check->rcand->type == PJ_ICE_CAND_TYPE_RELAYED) {
-	/* TODO (sblin) remove this - https://github.com/coturn/coturn/issues/408 */
-	check_set_state(ice, check, PJ_ICE_SESS_CHECK_STATE_NEEDS_FIRST_PACKET,
-			status);
     } else {
 	check->tdata = NULL;
 	pjnath_perror(ice->obj_name, "Error sending STUN request (perform check)", status);
@@ -2825,27 +2814,6 @@ static pj_status_t start_periodic_check(pj_timer_heap_t *th,
                     break;
                 }
             }
-        }
-
-        if (!check) {
-    	    // TODO (sblin) remove - https://github.com/coturn/coturn/issues/408
-    	    pj_bool_t inc_counter = PJ_TRUE;
-    	    for (i = 0; i < clist->count; ++i) {
-    	        pj_ice_sess_check *c = &clist->checks[i];
-    	        if (c->state == PJ_ICE_SESS_CHECK_STATE_NEEDS_FIRST_PACKET) {
-    	    	    if (inc_counter) {
-    	    	        td->first_packet_counter += 1;
-    	    	        inc_counter = PJ_FALSE;
-    	    	    }
-    	    	    if (td->first_packet_counter % 50 == 0) {
-    	    	        LOG5((ice->obj_name, "re-Starting periodic check for check %i (needs 1st packet)", i));
-                        check = c;
-                        check_idx = i;
-    	    	    }
-    	    	    check_pending = PJ_TRUE;
-    	    	    break;
-    	        }
-    	    }
         }
 #endif
 
@@ -3292,9 +3260,6 @@ void ice_sess_on_peer_connection(pj_ice_sess *ice,
 			pj_grp_lock_release(ice->grp_lock);
 			return;
 		}
-    } else if (status == PJ_EBUSY /* EBUSY */) {
-		check_set_state(ice, check, PJ_ICE_SESS_CHECK_STATE_NEEDS_FIRST_PACKET,
-				status);
     } else if (status != PJ_SUCCESS) {
 
 		if (rcand->type == PJ_ICE_CAND_TYPE_RELAYED) {
@@ -3333,14 +3298,8 @@ void ice_sess_on_peer_reset_connection(pj_ice_sess *ice,
 					   NULL);
 
 		if (!check) {
-			// Just check if it's not the first packet failing
-			check = get_current_check_at_state(ice, remote_addr,
-							PJ_ICE_SESS_CHECK_STATE_NEEDS_FIRST_PACKET,
-							NULL);
-			if (!check) {
-				pj_grp_lock_release(ice->grp_lock);
-				return;
-			}
+			pj_grp_lock_release(ice->grp_lock);
+			return;
 		}
 	}
 
@@ -3357,33 +3316,6 @@ void ice_sess_on_peer_reset_connection(pj_ice_sess *ice,
     }
 
     pj_grp_lock_release(ice->grp_lock);
-}
-
-void ice_sess_on_peer_packet(pj_ice_sess *ice,
-			     pj_uint8_t transport_id,
-			     pj_sockaddr_t* remote_addr)
-{
-    // The TCP link received its bind  request response
-    if (!ice || !remote_addr) {
-	return;
-    }
-
-    pj_grp_lock_acquire(ice->grp_lock);
-    pj_ice_sess_check *check =
-	get_current_check_at_state(ice, remote_addr,
-				   PJ_ICE_SESS_CHECK_STATE_NEEDS_FIRST_PACKET,
-				   NULL);
-    if (!check) {
-	pj_grp_lock_release(ice->grp_lock);
-	return;
-    }
-
-    const pj_ice_sess_cand *rcand = check->rcand;
-    if (rcand->type == PJ_ICE_CAND_TYPE_RELAYED) {
-	check_set_state(ice, check,
-			PJ_ICE_SESS_CHECK_STATE_IN_PROGRESS, PJ_SUCCESS);
-    }
-	pj_grp_lock_release(ice->grp_lock);
 }
 
 /* This callback is called when outgoing STUN request completed */
