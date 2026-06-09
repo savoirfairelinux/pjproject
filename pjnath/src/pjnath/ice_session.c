@@ -3230,6 +3230,10 @@ void ice_sess_on_peer_connection(pj_ice_sess *ice,
 					       PJ_FALSE, PJ_FALSE, &rcand->addr,
 					       pj_sockaddr_get_len(&rcand->addr),
 					       check->tdata);
+    pj_bool_t send_failed = status != PJ_SUCCESS && status != PJ_EPENDING;
+    if (send_failed) {
+        check->tdata = NULL;
+    }
 
     if (rcand->type == PJ_ICE_CAND_TYPE_RELAYED && (
 		status == PJ_ERRNO_START_SYS + 104 || status == 130054 || /* CONNECTION RESET BY PEER */
@@ -3260,7 +3264,7 @@ void ice_sess_on_peer_connection(pj_ice_sess *ice,
 			pj_grp_lock_release(ice->grp_lock);
 			return;
 		}
-    } else if (status != PJ_SUCCESS) {
+    } else if (send_failed) {
 
 		if (rcand->type == PJ_ICE_CAND_TYPE_RELAYED) {
 			char raddr[PJ_INET6_ADDRSTRLEN + 10];
@@ -3268,7 +3272,6 @@ void ice_sess_on_peer_connection(pj_ice_sess *ice,
 					"STUN send message to TURN (%s) failed with status %u",
 					pj_sockaddr_print(&rcand->addr, raddr, sizeof(raddr), 3), status));
 		}
-		check->tdata = NULL;
 		pjnath_perror(ice->obj_name, "Error sending STUN request (on peer connection)", status);
 		pj_log_pop_indent();
 		check_set_state(ice, check, PJ_ICE_SESS_CHECK_STATE_FAILED, status);
