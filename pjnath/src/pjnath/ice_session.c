@@ -61,7 +61,6 @@ static const char *check_state_name[] =
 {
     "Frozen",
     "Needs Retry",
-    "Needs First Packet",
     "Waiting",
     "Pending",
     "In Progress",
