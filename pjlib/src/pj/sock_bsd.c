@@ -35,13 +35,12 @@
 
 #define THIS_FILE       "sock_bsd.c"
 
-#if !defined(PJ_WIN32) && !defined(PJ_WIN64)
-# if !defined(SOL_TCP) && defined(IPPROTO_TCP)
+#if !defined(SOL_TCP) && defined(IPPROTO_TCP)
 #  define SOL_TCP IPPROTO_TCP
-# endif
-# if !defined(TCP_KEEPIDLE) && defined(TCP_KEEPALIVE)
+#endif
+/* Darwin and Windows both call the idle timer TCP_KEEPALIVE. */
+#if !defined(TCP_KEEPIDLE) && defined(TCP_KEEPALIVE)
 #  define TCP_KEEPIDLE TCP_KEEPALIVE
-# endif
 #endif
 
 /*
@@ -183,21 +182,29 @@ const pj_uint16_t PJ_SO_RCVBUF  = SO_RCVBUF;
 const pj_uint16_t PJ_SO_SNDBUF  = SO_SNDBUF;
 const pj_uint16_t PJ_SO_KEEPALIVE = SO_KEEPALIVE;
 const pj_uint16_t PJ_TCP_NODELAY= TCP_NODELAY;
-#if !defined(PJ_WIN32) && !defined(PJ_WIN64)
-# ifdef TCP_KEEPIDLE
+#ifdef TCP_KEEPIDLE
 const pj_uint16_t PJ_TCP_KEEPIDLE = TCP_KEEPIDLE;
-# endif
-# ifdef TCP_KEEPINTVL
-const pj_uint16_t PJ_TCP_KEEPINTVL = TCP_KEEPINTVL;
-# endif
-# ifdef TCP_USER_TIMEOUT
-const pj_uint16_t PJ_TCP_USER_TIMEOUT = TCP_USER_TIMEOUT;
 #else
-const pj_uint16_t PJ_TCP_USER_TIMEOUT = 18;
-# endif
-# ifdef TCP_KEEPCNT
+const pj_uint16_t PJ_TCP_KEEPIDLE = 0xFFFF;
+#endif
+#ifdef TCP_KEEPINTVL
+const pj_uint16_t PJ_TCP_KEEPINTVL = TCP_KEEPINTVL;
+#else
+const pj_uint16_t PJ_TCP_KEEPINTVL = 0xFFFF;
+#endif
+#ifdef TCP_KEEPCNT
 const pj_uint16_t PJ_TCP_KEEPCNT = TCP_KEEPCNT;
-# endif
+#else
+const pj_uint16_t PJ_TCP_KEEPCNT = 0xFFFF;
+#endif
+#ifdef TCP_USER_TIMEOUT
+const pj_uint16_t PJ_TCP_USER_TIMEOUT = TCP_USER_TIMEOUT;
+#elif !defined(PJ_WIN32) && !defined(PJ_WIN64)
+/* Linux value, for toolchains whose headers predate the option. */
+const pj_uint16_t PJ_TCP_USER_TIMEOUT = 18;
+#else
+/* Windows has no equivalent optname; TCP_MAXRT is used instead. */
+const pj_uint16_t PJ_TCP_USER_TIMEOUT = 0xFFFF;
 #endif
 const pj_uint16_t PJ_SO_REUSEADDR= SO_REUSEADDR;
 #ifdef SO_NOSIGPIPE
@@ -527,6 +534,79 @@ PJ_DEF(const pj_str_t*) pj_gethostname(void)
     return &hostname;
 }
 
+
+/*
+ * TCP options applied to every stream socket.
+ *
+ * The keepalive defaults of both Linux and Windows are two hours of idle time,
+ * which is useless for noticing a peer that disappeared without closing the
+ * connection. Probe far more aggressively instead. See PJ_TCP_KEEPALIVE_IDLE
+ * and friends in <pj/config.h> to tune this.
+ */
+/* Shorthand, since every option below is a TCP-level int. */
+static pj_status_t set_tcp_opt(pj_sock_t sock, pj_uint16_t optname,
+                               pj_int32_t val)
+{
+    return pj_sock_setsockopt(sock, pj_SOL_TCP(), optname, &val, sizeof(val));
+}
+
+/*
+ * Apply the options PJ wants on a newly created stream socket. Both
+ * pj_sock_socket() implementations call this, so no platform can quietly end
+ * up with a different set. Failures are ignored: an option the running system
+ * rejects must not stop the socket from being created.
+ */
+static void apply_stream_socket_options(pj_sock_t sock, int type)
+{
+    pj_int32_t val;
+
+    if ((type & 0xF) != pj_SOCK_STREAM())
+        return;
+
+#ifdef SO_NOSIGPIPE
+    val = 1;
+    pj_sock_setsockopt(sock, pj_SOL_SOCKET(), pj_SO_NOSIGPIPE(),
+                       &val, sizeof(val));
+#endif
+
+    /* Disable output buffering on the TCP socket to reduce latency. */
+    set_tcp_opt(sock, pj_TCP_NODELAY(), 1);
+
+    val = 1;
+    pj_sock_setsockopt(sock, pj_SOL_SOCKET(), pj_SO_KEEPALIVE(),
+                       &val, sizeof(val));
+
+    /*
+     * Guarded one by one rather than as a group: a platform that offers only
+     * some of them, an older Apple SDK for instance, should still get those.
+     * On Windows these need Windows 10 1703 for TCP_KEEPCNT and 1709 for the
+     * other two, which is below the minimum this is built for.
+     */
+#ifdef TCP_KEEPIDLE
+    set_tcp_opt(sock, pj_TCP_KEEPIDLE(), PJ_TCP_KEEPALIVE_IDLE);
+#endif
+#ifdef TCP_KEEPINTVL
+    set_tcp_opt(sock, pj_TCP_KEEPINTVL(), PJ_TCP_KEEPALIVE_INTERVAL);
+#endif
+#ifdef TCP_KEEPCNT
+    set_tcp_opt(sock, pj_TCP_KEEPCNT(), PJ_TCP_KEEPALIVE_COUNT);
+#endif
+
+    /*
+     * Bound how long unacknowledged data may stay outstanding before the
+     * connection is dropped. Windows spells it TCP_MAXRT and counts seconds
+     * rather than milliseconds.
+     */
+#if defined(PJ_WIN32) || defined(PJ_WIN64)
+#   ifdef TCP_MAXRT
+    set_tcp_opt(sock, TCP_MAXRT, PJ_TCP_RETRANSMIT_TIMEOUT);
+#   endif
+#else
+    set_tcp_opt(sock, pj_TCP_USER_TIMEOUT(), PJ_TCP_RETRANSMIT_TIMEOUT * 1000);
+#endif
+}
+
+
 #if defined(PJ_WIN32) || defined(PJ_WIN64)
 /*
  * Create new socket/endpoint for communication and returns a descriptor.
@@ -574,6 +654,8 @@ PJ_DEF(pj_status_t) pj_sock_socket(int af,
     }
 #endif
 
+    apply_stream_socket_options(*sock, type);
+
     return PJ_SUCCESS;
 }
 
@@ -607,28 +689,10 @@ PJ_DEF(pj_status_t) pj_sock_socket(int af,
     if (*sock == PJ_INVALID_SOCKET)
         return PJ_RETURN_OS_ERROR(pj_get_native_netos_error());
     else {
-        pj_int32_t val = 1;
-        if ((type & 0xF) == pj_SOCK_STREAM()) {
-            pj_sock_setsockopt(*sock, pj_SOL_SOCKET(), pj_SO_NOSIGPIPE(),
-                    &val, sizeof(val));
-            pj_sock_setsockopt(*sock, pj_SOL_SOCKET(), pj_SO_KEEPALIVE(),
-                    &val, sizeof(val));
-            pj_sock_setsockopt(*sock, pj_SOL_TCP(), pj_TCP_KEEPCNT(),
-                    &val, sizeof(val));
-            val = 30;
-            pj_sock_setsockopt(*sock, pj_SOL_TCP(), pj_TCP_KEEPIDLE(),
-                    &val, sizeof(val));
-            pj_sock_setsockopt(*sock, pj_SOL_TCP(), pj_TCP_KEEPINTVL(),
-                    &val, sizeof(val));
-            val = 30000;
-            pj_sock_setsockopt(*sock, pj_SOL_TCP(), pj_TCP_USER_TIMEOUT(),
-                    &val, sizeof(val));
-            val = 1;
-            pj_sock_setsockopt(*sock, pj_SOL_TCP(), pj_TCP_NODELAY(),
-                    &val, sizeof(val));
-        }
+        apply_stream_socket_options(*sock, type);
 #if defined(PJ_SOCK_HAS_IPV6_V6ONLY) && PJ_SOCK_HAS_IPV6_V6ONLY != 0
         if (af == PJ_AF_INET6) {
+            pj_int32_t val = 1;
             pj_sock_setsockopt(*sock, PJ_SOL_IPV6, IPV6_V6ONLY,
                                &val, sizeof(val));
         }
@@ -636,6 +700,7 @@ PJ_DEF(pj_status_t) pj_sock_socket(int af,
 #if defined(PJ_IPHONE_OS_HAS_MULTITASKING_SUPPORT) && \
     PJ_IPHONE_OS_HAS_MULTITASKING_SUPPORT!=0
         if ((type & 0xF) == pj_SOCK_DGRAM()) {
+            pj_int32_t val = 1;
             pj_sock_setsockopt(*sock, pj_SOL_SOCKET(), SO_NOSIGPIPE,
                                &val, sizeof(val));
         }
