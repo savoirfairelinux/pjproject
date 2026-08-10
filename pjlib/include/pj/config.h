@@ -656,6 +656,50 @@
 #endif
 
 /**
+ * Idle time, in seconds, before keepalive probing starts on a TCP socket.
+ * The operating system defaults, two hours on both Linux and Windows, are far
+ * too slow to notice a peer that disappeared without closing the connection.
+ *
+ * Default: 30
+ */
+#ifndef PJ_TCP_KEEPALIVE_IDLE
+#  define PJ_TCP_KEEPALIVE_IDLE     30
+#endif
+
+/**
+ * Interval, in seconds, between TCP keepalive probes.
+ *
+ * Default: 30
+ */
+#ifndef PJ_TCP_KEEPALIVE_INTERVAL
+#  define PJ_TCP_KEEPALIVE_INTERVAL 30
+#endif
+
+/**
+ * Number of unanswered TCP keepalive probes before the connection is dropped.
+ * Not configurable on Windows versions that predate the per-socket keepalive
+ * options, where the system uses a fixed count of ten.
+ *
+ * Default: 1
+ */
+#ifndef PJ_TCP_KEEPALIVE_COUNT
+#  define PJ_TCP_KEEPALIVE_COUNT    1
+#endif
+
+/**
+ * How long, in seconds, unacknowledged data may stay outstanding on a TCP
+ * socket before the connection is dropped. Maps to TCP_USER_TIMEOUT.
+ *
+ * Not applied on Windows, whose own default already expires sooner than this;
+ * see apply_stream_socket_options() in sock_bsd.c.
+ *
+ * Default: 30
+ */
+#ifndef PJ_TCP_RETRANSMIT_TIMEOUT
+#  define PJ_TCP_RETRANSMIT_TIMEOUT 30
+#endif
+
+/**
  * Support IPv6 in the library. If this support is disabled, some IPv6 
  * related functions will return PJ_EIPV6NOTSUP.
  *
