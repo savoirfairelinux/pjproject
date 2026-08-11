@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "76ad4685_d617684a",
+        "filename": "pjlib/src/pj/sock_bsd.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 554,
+      "author": {
+        "id": 1196
+      },
+      "writtenOn": "2026-08-11T18:42:00Z",
+      "side": 1,
+      "message": "[error] Line 554: 🔴 `pj_sock_setsockopt()` takes `optlen` as `pj_size_t` and forwards it to `setsockopt()`. On Windows the native `setsockopt()` expects an `int` length, so passing `sizeof(val)` directly can fail to compile because `pj_size_t` is `size_t`. Use the existing pjlib Windows pattern with a local `int optlen \u003d sizeof(val)` or adjust the helper so the Windows call receives the expected length type.",
+      "revId": "406e1f430d5407d0c4c675d0862f6d46cdffcb9e",
+      "serverId": "1e26b4c1-6b8c-47ff-9df7-501b633d3b5a"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "86e0cb90_d854e9b7",
+        "filename": "pjlib/src/pjlib-test/sock.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 477,
+      "author": {
+        "id": 1196
+      },
+      "writtenOn": "2026-08-11T18:42:00Z",
+      "side": 1,
+      "message": "[error] Line 477: 🔴 `pj_sock_getsockopt()` expects `pj_size_t *` for the length argument, but the test passes `int *`. This is especially problematic on 64-bit builds where `pj_size_t` and `int` differ in size. Change `len` to `pj_size_t len \u003d sizeof(val);` here and in the UDP check below.",
+      "revId": "406e1f430d5407d0c4c675d0862f6d46cdffcb9e",
+      "serverId": "1e26b4c1-6b8c-47ff-9df7-501b633d3b5a"
+    }
+  ]
+}
