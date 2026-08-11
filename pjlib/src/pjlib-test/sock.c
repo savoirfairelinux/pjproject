@@ -466,6 +466,104 @@ static int simple_sock_test(void)
 }
 
 
+/*
+ * Verify that pj_sock_socket() actually applies the options it is meant to.
+ * These were once set on POSIX only, and the Windows half was lost in a
+ * refactor without anything noticing, so read them back rather than trusting
+ * that the calls are still there.
+ */
+static int check_sockopt(pj_sock_t sock, int level, pj_uint16_t optname,
+                         int expected, const char *name, pj_bool_t optional)
+{
+    int val = -1;
+    int len = sizeof(val);
+    pj_status_t rc;
+
+    rc = pj_sock_getsockopt(sock, (pj_uint16_t)level, optname, &val, &len);
+    if (rc != PJ_SUCCESS) {
+        /* Only the granular keepalive options are allowed to be missing; a
+         * mandatory option that cannot be read back means it was never set. */
+        if (!optional) {
+            app_perror("...error: unable to read back option", rc);
+            PJ_LOG(1,("test", "....error: %s could not be read back", name));
+            return -1;
+        }
+        PJ_LOG(3,("test", "....%s not supported, skipped", name));
+        return 0;
+    }
+
+    if (expected < 0 ? val == 0 : val != expected) {
+        PJ_LOG(1,("test", "....error: %s is %d, expected %d",
+                  name, val, expected));
+        return -1;
+    }
+
+    return 0;
+}
+
+static int stream_sockopt_test(void)
+{
+    pj_sock_t sock;
+    pj_status_t rc;
+    int ret = 0;
+
+    PJ_LOG(3,("test", "...stream_sockopt_test()"));
+
+    rc = pj_sock_socket(pj_AF_INET(), pj_SOCK_STREAM(), 0, &sock);
+    if (rc != PJ_SUCCESS) {
+        app_perror("...error: unable to create socket", rc);
+        return -10;
+    }
+
+    /* -1 means "any non-zero value", since a boolean option may read back
+     * as something other than the 1 that was written. */
+    if (ret == 0 && check_sockopt(sock, pj_SOL_SOCKET(), pj_SO_KEEPALIVE(),
+                                  -1, "SO_KEEPALIVE", PJ_FALSE))
+        ret = -20;
+    if (ret == 0 && check_sockopt(sock, pj_SOL_TCP(), pj_TCP_NODELAY(),
+                                  -1, "TCP_NODELAY", PJ_FALSE))
+        ret = -30;
+    if (ret == 0 && check_sockopt(sock, pj_SOL_TCP(), pj_TCP_KEEPIDLE(),
+                                  PJ_TCP_KEEPALIVE_IDLE, "TCP_KEEPIDLE",
+                                  PJ_TRUE))
+        ret = -40;
+    if (ret == 0 && check_sockopt(sock, pj_SOL_TCP(), pj_TCP_KEEPINTVL(),
+                                  PJ_TCP_KEEPALIVE_INTERVAL, "TCP_KEEPINTVL",
+                                  PJ_TRUE))
+        ret = -50;
+    if (ret == 0 && check_sockopt(sock, pj_SOL_TCP(), pj_TCP_KEEPCNT(),
+                                  PJ_TCP_KEEPALIVE_COUNT, "TCP_KEEPCNT",
+                                  PJ_TRUE))
+        ret = -60;
+
+    pj_sock_close(sock);
+    if (ret != 0)
+        return ret;
+
+    /* Datagram sockets must be left alone. */
+    rc = pj_sock_socket(pj_AF_INET(), pj_SOCK_DGRAM(), 0, &sock);
+    if (rc != PJ_SUCCESS) {
+        app_perror("...error: unable to create socket", rc);
+        return -70;
+    }
+
+    {
+        int val = -1;
+        int len = sizeof(val);
+
+        rc = pj_sock_getsockopt(sock, pj_SOL_SOCKET(), pj_SO_KEEPALIVE(),
+                                &val, &len);
+        if (rc == PJ_SUCCESS && val != 0) {
+            PJ_LOG(1,("test", "....error: SO_KEEPALIVE set on a UDP socket"));
+            ret = -80;
+        }
+    }
+
+    pj_sock_close(sock);
+    return ret;
+}
+
+
 static int send_recv_test(int sock_type,
                           pj_sock_t ss, pj_sock_t cs,
                           pj_sockaddr_in *dstaddr, pj_sockaddr_in *srcaddr, 
@@ -978,6 +1076,10 @@ int sock_test()
         return rc;
 
     rc = simple_sock_test();
+    if (rc != 0)
+        return rc;
+
+    rc = stream_sockopt_test();
     if (rc != 0)
         return rc;
 
