@@ -38,6 +38,24 @@
     {
       "unresolved": false,
       "key": {
+        "uuid": "a8a86d08_6da1d960",
+        "filename": "pjlib/src/pj/sock_bsd.c",
+        "patchSetId": 6
+      },
+      "lineNbr": 613,
+      "author": {
+        "id": 90
+      },
+      "writtenOn": "2026-08-11T20:09:47Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "1864cc50_4ab01db4",
+      "revId": "0083e28a0ebfa4d110bf4d4136b4e2affb4b19a1",
+      "serverId": "1e26b4c1-6b8c-47ff-9df7-501b633d3b5a"
+    },
+    {
+      "unresolved": false,
+      "key": {
         "uuid": "c4d770ee_1e2664ae",
         "filename": "pjlib/src/pjlib-test/sock.c",
         "patchSetId": 6
