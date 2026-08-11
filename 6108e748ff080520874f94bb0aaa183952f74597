@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "b0e8a3b5_ec2f8adc",
+        "filename": "pjlib/src/pjlib-test/sock.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 509,
+      "author": {
+        "id": 1196
+      },
+      "writtenOn": "2026-08-11T19:47:40Z",
+      "side": 1,
+      "message": "[warning] Line 509: 🟡 `check_sockopt()` treats any `getsockopt()` failure as unsupported, so the regression can pass even when a supposedly configured option was not applied or was queried with an invalid optname. Only skip options that are genuinely unavailable at compile time/platform level, and fail when an option that `apply_stream_socket_options()` attempted to set cannot be read back.",
+      "revId": "6108e748ff080520874f94bb0aaa183952f74597",
+      "serverId": "1e26b4c1-6b8c-47ff-9df7-501b633d3b5a"
+    }
+  ]
+}
