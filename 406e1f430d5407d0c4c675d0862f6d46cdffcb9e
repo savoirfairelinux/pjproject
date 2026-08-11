@@ -20,6 +20,24 @@
     {
       "unresolved": true,
       "key": {
+        "uuid": "753dd598_710f83d5",
+        "filename": "pjlib/src/pj/sock_bsd.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 554,
+      "author": {
+        "id": 90
+      },
+      "writtenOn": "2026-08-11T19:38:30Z",
+      "side": 1,
+      "message": "pj_sock_setsockopt() declares optlen as int, not pj_size_t (sock.h:1420), and the Windows implementation passes it straight to setsockopt(), which also wants int (sock_bsd.c:949). sizeof(val) here is the compile-time constant 4 with no narrowing at runtime, and it is the pattern already used at the other call sites. Built clean under MSVC v143 x64 Release; no change made.",
+      "parentUuid": "76ad4685_d617684a",
+      "revId": "406e1f430d5407d0c4c675d0862f6d46cdffcb9e",
+      "serverId": "1e26b4c1-6b8c-47ff-9df7-501b633d3b5a"
+    },
+    {
+      "unresolved": true,
+      "key": {
         "uuid": "86e0cb90_d854e9b7",
         "filename": "pjlib/src/pjlib-test/sock.c",
         "patchSetId": 3
@@ -31,6 +49,24 @@
       "writtenOn": "2026-08-11T18:42:00Z",
       "side": 1,
       "message": "[error] Line 477: 🔴 `pj_sock_getsockopt()` expects `pj_size_t *` for the length argument, but the test passes `int *`. This is especially problematic on 64-bit builds where `pj_size_t` and `int` differ in size. Change `len` to `pj_size_t len \u003d sizeof(val);` here and in the UDP check below.",
+      "revId": "406e1f430d5407d0c4c675d0862f6d46cdffcb9e",
+      "serverId": "1e26b4c1-6b8c-47ff-9df7-501b633d3b5a"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "b3f84636_10981c5c",
+        "filename": "pjlib/src/pjlib-test/sock.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 477,
+      "author": {
+        "id": 90
+      },
+      "writtenOn": "2026-08-11T19:38:30Z",
+      "side": 1,
+      "message": "pj_sock_getsockopt() takes int *optlen (sock.h:1398-1402), so int len is the correct type and pj_size_t would be the mismatch. In-tree precedent agrees: sock_common.c:1156 declares int size_len and ioqueue_common_abs.c:83 declares int optlen, both passed to this same API. No change made.",
+      "parentUuid": "86e0cb90_d854e9b7",
       "revId": "406e1f430d5407d0c4c675d0862f6d46cdffcb9e",
       "serverId": "1e26b4c1-6b8c-47ff-9df7-501b633d3b5a"
     }
