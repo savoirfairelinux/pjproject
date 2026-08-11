@@ -36,6 +36,24 @@
       "serverId": "1e26b4c1-6b8c-47ff-9df7-501b633d3b5a"
     },
     {
+      "unresolved": false,
+      "key": {
+        "uuid": "054a981f_7357c0dd",
+        "filename": "pjlib/src/pj/sock_bsd.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 554,
+      "author": {
+        "id": 90
+      },
+      "writtenOn": "2026-08-11T19:42:41Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "753dd598_710f83d5",
+      "revId": "406e1f430d5407d0c4c675d0862f6d46cdffcb9e",
+      "serverId": "1e26b4c1-6b8c-47ff-9df7-501b633d3b5a"
+    },
+    {
       "unresolved": true,
       "key": {
         "uuid": "86e0cb90_d854e9b7",
@@ -67,6 +85,24 @@
       "side": 1,
       "message": "pj_sock_getsockopt() takes int *optlen (sock.h:1398-1402), so int len is the correct type and pj_size_t would be the mismatch. In-tree precedent agrees: sock_common.c:1156 declares int size_len and ioqueue_common_abs.c:83 declares int optlen, both passed to this same API. No change made.",
       "parentUuid": "86e0cb90_d854e9b7",
+      "revId": "406e1f430d5407d0c4c675d0862f6d46cdffcb9e",
+      "serverId": "1e26b4c1-6b8c-47ff-9df7-501b633d3b5a"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "c2bb62cb_03788736",
+        "filename": "pjlib/src/pjlib-test/sock.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 477,
+      "author": {
+        "id": 90
+      },
+      "writtenOn": "2026-08-11T19:42:41Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "b3f84636_10981c5c",
       "revId": "406e1f430d5407d0c4c675d0862f6d46cdffcb9e",
       "serverId": "1e26b4c1-6b8c-47ff-9df7-501b633d3b5a"
     }
